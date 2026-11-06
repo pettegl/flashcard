@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.1.1 · **Last updated:** 2026-11-06
+**Status:** Draft · **Version:** 1.1.2 · **Last updated:** 2026-11-06
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -337,7 +337,7 @@ flashcard/
 docs/specs/{PRD,DEVSPEC,UISPEC,TESTSPEC}.md
 docs/reference/third-party-game-spec.md   external container contract (CR§)
 docs/"Flashcard Spec Brief.md"       original brief (local only: gitignored, not published)
-LICENSE                              MIT
+README.md  LICENSE                    project overview, getting started; MIT
 package.json  tsconfig.json  eslint.config.mjs  babel.config.cjs  jest.config.cjs  playwright.config.ts
 webpack.config.cjs                   STANDALONE build; publicPath './'; CSS extract; copies fonts
 src/index.tsx  src/index.html        entry; static HTML (no inline script/style)
@@ -363,7 +363,7 @@ content/{decks/<deck>/**,lang/<lang>/**,icons/<deck>-<lang>.png}     production 
 
 | Path | Class | Rule |
 |---|---|---|
-| `src/`, `scripts/`, `tests/`, `docs/`, configs, `LICENSE`, `src/assets/fonts` | **Versioned** | committed to the public repository `github.com/pettegl/flashcard` (MIT) |
+| `src/`, `scripts/`, `tests/`, `docs/`, configs, `README.md`, `LICENSE`, `src/assets/fonts` | **Versioned** | committed to the public repository `github.com/pettegl/flashcard` (MIT) |
 | `docs/Flashcard Spec Brief.md` | **Local** | original brief; gitignored, never published |
 | `node_modules/`, `dist/`, `release/`, `coverage/`, `test-results/`, `playwright-report/` | **Ephemeral** | regenerated < 1 min–10 min; gitignored |
 | `fixtures/**` | **Ephemeral** | regenerated deterministically by `npm run fixtures`; gitignored |
@@ -517,6 +517,8 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-06 — Copilot — Added `README.md` to the §III.1 implementation layout and versioned paths.
 
 2026-11-06 — Copilot — Moved the Curious Reader contract to `docs/reference/`, marked the original brief as local-only, and recorded the public MIT repository and `LICENSE` in §III.1.
 
