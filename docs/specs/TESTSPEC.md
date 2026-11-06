@@ -1,6 +1,6 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.1.0 · **Last updated:** 2026-11-06
+**Status:** Draft · **Version:** 1.1.1 · **Last updated:** 2026-11-06
 **Verifies:** DEVSPEC v1.1.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
@@ -73,11 +73,11 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 
 | ID | Tier | Title / steps | Expected | Verifies |
 |---|---|---|---|---|
-| UT-01 | MVP | `parseLaunchParams('?cr_lang=english&cr_book=animals&cr_user_id=u1')` | `{lang:'english', deck:'animals', userId:'u1'}` | FR-03 |
+| UT-01 | MVP | `parseLaunchParams('?cr_lang=english&cr_book=animals&cr_user_id=u1')` (UT-01…04 in `tests/unit/launchParams.test.ts`) | `{ok:true, params:{lang:'english', deck:'animals', userId:'u1'}}` | FR-03 |
 | UT-02 | MVP | Missing/empty `cr_lang`; missing/empty `cr_book` | result is error `E1` each | FR-03 |
-| UT-03 | MVP | Invalid `lang`/`deck`: `../x`, `ENGLISH`, `a b`, `a/b`, `%2e%2e`, 65 chars, `""` | `E1` for each; no path built | FR-03, NFR-06 |
-| UT-04 | MVP | `cr_user_id` absent, whitespace-padded, 129 chars | `""`, trimmed value, `""` respectively | FR-03 |
-| UT-05 | MVP | Env flags with mocked `location.protocol` (`file:`/`https:`) and with/without `ReactNativeWebView.postMessage` | `IS_FILE_ORIGIN`, `IN_CONTAINER` correct | FR-04 |
+| UT-03 | MVP | Invalid `lang`/`deck` (each param in turn): `../x`, `ENGLISH`, `a b` (`%20` and `+`), `a/b`, `%2e%2e`, 65 chars, `""`, space-padded | `E1` for each; result carries no params (no path built) | FR-03, NFR-06 |
+| UT-04 | MVP | `cr_user_id` absent, whitespace-padded, 129 chars, 128 chars | `""`, trimmed value, `""`, kept respectively | FR-03 |
+| UT-05 | MVP | Env flags via `detectEnv` with a stub window (`location.protocol` `file:`/`https:`; with/without `ReactNativeWebView.postMessage`), and the boot-time constants after a fresh module load (`tests/unit/env.test.ts`) | `IS_FILE_ORIGIN`, `IN_CONTAINER` correct; constants not re-evaluated after load | FR-04 |
 | UT-06 | MVP | `loadBinary` on `file:` with mocked XHR statuses `0` and `200` | resolves ArrayBuffer; `fetch` and `caches` never called | FR-05 |
 | UT-07 | MVP | `loadBinary` with XHR status 404, `onerror`, and timeout | rejects each | FR-05 |
 | UT-08 | MVP | `loadBinary` on `https:` | uses `fetch` + `caches`; on `file:` `caches.open` is **never** called (spy) | FR-05 |
@@ -302,6 +302,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-06 — Copilot — Named the Module 1 test files for UT-01…05, aligned UT-01 with the FR-03 result shape, and added the `+`/padded-slug, 128-char `cr_user_id` and boot-time constant cases to UT-03…05.
 
 2026-11-06 — Copilot — Added BLD-03 (fixture contract), moved PKG-09 to MVP and into the MS1 gate, named the Module 0 test files for BLD-01/02 and PKG-09, documented the full-Chromium/`PW_CHANNEL` browser setup, and clarified the `missing-audio`/`bigdeck` fixtures.
 

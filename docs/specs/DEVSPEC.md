@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.1.2 · **Last updated:** 2026-11-06
+**Status:** Draft · **Version:** 1.1.3 · **Last updated:** 2026-11-06
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -123,8 +123,8 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-03 | MVP | `parseLaunchParams(search)` returns `{lang, deck, userId}`. `lang` and `deck` are required and must match `^[a-z0-9-]{1,64}$`; otherwise result is error **E1**. `userId` is optional opaque text (trimmed; `""` if absent or > 128 chars); never validated further, never invented. Params are never concatenated into a path before validation passes. | PR-04, PR-05 |
-| FR-04 | MVP | `IS_FILE_ORIGIN = location.protocol === 'file:'`; `IN_CONTAINER = typeof window.ReactNativeWebView?.postMessage === 'function'`. Computed once at boot. | PR-12 |
+| FR-03 | MVP | `parseLaunchParams(search)` returns `{ok: true, params: {lang, deck, userId}}` or `{ok: false, error: 'E1'}` (no params on error). `lang` and `deck` are required and must match `^[a-z0-9-]{1,64}$` after URL decoding, untrimmed; otherwise result is error **E1**. `userId` is optional opaque text (trimmed; `""` if absent or if the trimmed value is > 128 chars); never validated further, never invented. Params are never concatenated into a path before validation passes. | PR-04, PR-05 |
+| FR-04 | MVP | `IS_FILE_ORIGIN = location.protocol === 'file:'`; `IN_CONTAINER = typeof window.ReactNativeWebView?.postMessage === 'function'`. Computed once at boot (module load of `env.ts`) through the pure `detectEnv(window)`, which tests call with a stub window. | PR-12 |
 
 **Exit:** unit tests UT-01…UT-05 pass.
 
@@ -420,7 +420,7 @@ npm run verify:release
 
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
-| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Module 0 Done (tested) and Approved 2026-11-06; Modules 1–4, 6, 7 Not started) |
+| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0 and 1 Done (tested) and Approved 2026-11-06; Modules 2–4, 6, 7 Not started) |
 | MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | Not started |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
@@ -512,11 +512,14 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-06 | Jest `roots: ['tests']` hides untested `src/` files from coverage, inflating NFR-08 numbers; brace-glob `coverageThreshold` keys did not match on Windows, and a threshold key with no files fails the run. Fix: `roots` include `src/`; per-directory threshold keys added only for existing non-UI module folders. | Integrated (§III.3 Jest row; `jest.config.cjs`) |
 | 2026-11-06 | On the Windows dev machine a policy denies Node from spawning executables under `%LOCALAPPDATA%\ms-playwright` (`spawn EPERM`), so Playwright's bundled browsers cannot start; installed Chrome works. | Integrated (§III.3 Playwright row, `PW_CHANNEL`); needs strengthening: confirm the CI runner uses Playwright's Chromium |
 | 2026-11-06 | `.eslintrc.cjs` named in the layout only works with end-of-life ESLint 8. | Integrated (RD-13, §III.1) |
+| 2026-11-06 | Re-evaluating boot-time constants (FR-04) in a test with `jest.isolateModules` + `require()` fails lint (`@typescript-eslint/no-require-imports`); use `jest.isolateModulesAsync` with a dynamic `import()`. | Integrated (`tests/unit/env.test.ts`; TESTSPEC UT-05) |
 
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-06 — Copilot — Recorded Module 1 as done and approved, clarified the FR-03 result shape, decoding and `userId` length rule and the FR-04 `detectEnv` helper, and added a Lessons Log entry on re-importing boot-time modules in tests.
 
 2026-11-06 — Copilot — Added `README.md` to the §III.1 implementation layout and versioned paths.
 
