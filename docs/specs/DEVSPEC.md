@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.1.3 · **Last updated:** 2026-11-06
+**Status:** Draft · **Version:** 1.2.0 · **Last updated:** 2026-11-06
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -132,8 +132,8 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-05 | MVP | `loadBinary(url, {timeoutMs})` per CR§2.3: on `file:` use `XMLHttpRequest` (`arraybuffer`; success when status `0` or `200`); on http(s) use `fetch` + Cache Storage. **`caches` is never touched on `file:`.** Rejects on error/timeout. `loadJson(url)` = `loadBinary` + UTF-8 decode + `JSON.parse`. | PR-12, PR-16 |
-| FR-06 | MVP | `preload(urls[], {concurrency: PRELOAD_CONCURRENCY})` uses `Promise.allSettled`; a failed asset never rejects the batch. Audio decode failure yields a 1-frame silent `AudioBuffer`. Images preload via `Image()` (relative `src`). Fonts load via `FontFace` from `loadBinary` buffers; failure is non-fatal (system font stack). | PR-16 |
+| FR-05 | MVP | `loadBinary(url, {timeoutMs})` per CR§2.3: on `file:` use `XMLHttpRequest` (`arraybuffer`; success when status `0` or `200`); on http(s) use `fetch` + Cache Storage. **`caches` is never touched on `file:`.** Rejects on error/timeout. `loadJson(url, {timeoutMs})` = `loadBinary` + UTF-8 decode + `JSON.parse`. | PR-12, PR-16 |
+| FR-06 | MVP | `preload(assets[], {concurrency: PRELOAD_CONCURRENCY, timeoutMs?})` takes typed entries `{kind: 'image'\|'audio'\|'font', url}` (fonts add `family`, `weight`) and resolves to a per-URL result map; it uses `Promise.allSettled`, and a failed asset (including one exceeding `timeoutMs`) is recorded with a `console.warn` and never rejects the batch. Images preload via `Image()` (relative `src`). Audio is loaded as bytes via `loadBinary` and not decoded (no `AudioContext` exists before the first gesture — FR-13). Fonts load via `FontFace` from `loadBinary` buffers; failure is non-fatal (system font stack). | PR-16 |
 
 **Exit:** UT-06…UT-09 pass; with one deliberately missing asset, boot still reaches the ready screen (IT-03).
 
@@ -168,7 +168,7 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-13 | MVP | `AudioPlayer` uses one shared Web Audio `AudioContext` (created lazily on the first user gesture; `resume()` if suspended). `play(cardId)` stops any currently playing source, then starts the card's decoded buffer. `stop()` is called on any navigation and on flip to front. A card with no/failed audio plays nothing and raises no error. Buffers are decoded from `loadBinary` data. Audio starts **at the moment the flip starts** (not after the animation). | PR-02, PR-16 |
+| FR-13 | MVP | `AudioPlayer` uses one shared Web Audio `AudioContext` (created lazily on the first user gesture; `resume()` if suspended). `play(cardId)` stops any currently playing source, then starts the card's decoded buffer. `stop()` is called on any navigation and on flip to front. A card with no/failed audio plays nothing and raises no error. Buffers are decoded from `loadBinary` data (the bytes preloaded by FR-06) once the context exists; a decode failure yields a 1-frame silent `AudioBuffer`. Audio starts **at the moment the flip starts** (not after the animation). | PR-02, PR-16 |
 
 **Exit:** UT-23 passes; E2E-03 observes exactly one `AudioBufferSourceNode.start` per reveal.
 
@@ -420,7 +420,7 @@ npm run verify:release
 
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
-| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0 and 1 Done (tested) and Approved 2026-11-06; Modules 2–4, 6, 7 Not started) |
+| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4, 6, 7 Not started) |
 | MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | Not started |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
@@ -513,11 +513,15 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-06 | On the Windows dev machine a policy denies Node from spawning executables under `%LOCALAPPDATA%\ms-playwright` (`spawn EPERM`), so Playwright's bundled browsers cannot start; installed Chrome works. | Integrated (§III.3 Playwright row, `PW_CHANNEL`); needs strengthening: confirm the CI runner uses Playwright's Chromium |
 | 2026-11-06 | `.eslintrc.cjs` named in the layout only works with end-of-life ESLint 8. | Integrated (RD-13, §III.1) |
 | 2026-11-06 | Re-evaluating boot-time constants (FR-04) in a test with `jest.isolateModules` + `require()` fails lint (`@typescript-eslint/no-require-imports`); use `jest.isolateModulesAsync` with a dynamic `import()`. | Integrated (`tests/unit/env.test.ts`; TESTSPEC UT-05) |
+| 2026-11-06 | FR-06 decoded audio during preload, but FR-13 creates the only `AudioContext` on the first gesture, so boot preload had no context to decode with. Preload now returns bytes; decoding and the silent-buffer fallback moved to the audio player (owner decision). | Integrated (FR-06, FR-13; TESTSPEC UT-09, UT-23) |
+| 2026-11-06 | The Jest jsdom environment has no `TextEncoder`/`TextDecoder`, `fetch`, `caches`, `FontFace` or `document.fonts`; tests stub them (`node:util` for the codecs). With fake timers, attach `expect(p).rejects` before advancing time, or the timeout rejection is reported as unhandled. | Integrated (`tests/unit/loadBinary.test.ts`, `tests/unit/preload.test.ts`) |
 
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-06 — Copilot — Recorded Module 2 as done and approved, gave `loadJson` a `timeoutMs`, changed FR-06 to typed preload entries returning a per-URL result map with audio loaded as bytes only, moved audio decoding and the silent-buffer fallback to FR-13, and added two Lessons Log entries.
 
 2026-11-06 — Copilot — Recorded Module 1 as done and approved, clarified the FR-03 result shape, decoding and `userId` length rule and the FR-04 `detectEnv` helper, and added a Lessons Log entry on re-importing boot-time modules in tests.
 

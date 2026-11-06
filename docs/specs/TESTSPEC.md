@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.1.1 · **Last updated:** 2026-11-06
-**Verifies:** DEVSPEC v1.1.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.2.0 · **Last updated:** 2026-11-06
+**Verifies:** DEVSPEC v1.2.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -78,10 +78,10 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-03 | MVP | Invalid `lang`/`deck` (each param in turn): `../x`, `ENGLISH`, `a b` (`%20` and `+`), `a/b`, `%2e%2e`, 65 chars, `""`, space-padded | `E1` for each; result carries no params (no path built) | FR-03, NFR-06 |
 | UT-04 | MVP | `cr_user_id` absent, whitespace-padded, 129 chars, 128 chars | `""`, trimmed value, `""`, kept respectively | FR-03 |
 | UT-05 | MVP | Env flags via `detectEnv` with a stub window (`location.protocol` `file:`/`https:`; with/without `ReactNativeWebView.postMessage`), and the boot-time constants after a fresh module load (`tests/unit/env.test.ts`) | `IS_FILE_ORIGIN`, `IN_CONTAINER` correct; constants not re-evaluated after load | FR-04 |
-| UT-06 | MVP | `loadBinary` on `file:` with mocked XHR statuses `0` and `200` | resolves ArrayBuffer; `fetch` and `caches` never called | FR-05 |
-| UT-07 | MVP | `loadBinary` with XHR status 404, `onerror`, and timeout | rejects each | FR-05 |
-| UT-08 | MVP | `loadBinary` on `https:` | uses `fetch` + `caches`; on `file:` `caches.open` is **never** called (spy) | FR-05 |
-| UT-09 | MVP | `preload` with 1 of 5 URLs failing; audio decode failure; concurrency 4 | resolves; failure recorded; silent buffer substituted; ≤ 4 in flight | FR-06 |
+| UT-06 | MVP | `loadBinary` on `file:` with mocked XHR statuses `0` and `200` (UT-06…08 and `loadJson` in `tests/unit/loadBinary.test.ts`) | resolves ArrayBuffer; `fetch` and `caches` never called | FR-05 |
+| UT-07 | MVP | `loadBinary` with XHR status 404, status `0` with no body, `onerror`, and timeout; an error before `timeoutMs` | rejects each; timeout aborts the XHR; an early error is reported as itself and nothing is aborted | FR-05 |
+| UT-08 | MVP | `loadBinary` on `https:`: cache miss, cache hit, non-ok status, Cache Storage absent / failing to open / failing to read or write, timeout; `loadJson` UTF-8 with BOM, invalid JSON, load failure | uses `fetch` + `caches` (stores on miss, no fetch on hit); non-ok rejects and caches nothing; cache problems still load via `fetch`; timeout rejects and aborts the fetch; on `file:` `caches.open` is **never** called (spy); `loadJson` parses, rejects on invalid JSON and load failure | FR-05 |
+| UT-09 | MVP | `preload` with 1 of 5 URLs failing; audio and font entries (font load failure, no `FontFace`); a hanging image with `timeoutMs`; concurrency 4; duplicate URLs (`tests/unit/preload.test.ts`) | resolves; failure recorded with a warning; audio entries return bytes (not decoded); font failure non-fatal; hanging asset fails at `timeoutMs` and frees its slot; ≤ 4 in flight; a duplicate URL loads once | FR-06 |
 | UT-10 | MVP | `validateDeck` with the valid fixture | passes | FR-07 |
 | UT-11 | MVP | `validateDeck` table: bad `schema_version`, `deck_id` mismatch, duplicate `card_id`, bad id regex (`Bear`, `a_b`), image with `..`/`/x`/`http://`/bad extension, order id unknown, >`MAX_CARDS` | throws `DeckError` naming each violation | FR-07 |
 | UT-12 | MVP | `validateWords` table: bad `schema_version`, `deck_id`/`lang` mismatch, empty/65-char `target_word`, audio not under `lang/<lang>/audios/`, audio is a URL, bad extension | each rejected (card-level issues drop the card; file-level issues throw) | FR-08 |
@@ -95,7 +95,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-20 | MVP | Any index change while `face:'back'` | new `face:'front'` | FR-11 |
 | UT-21 | Better | Save then restore progress | restores the saved `card_id` index, face `front` | FR-12 |
 | UT-22 | Better | Stored id unknown; corrupt JSON; `localStorage` throws on get/set | index 0; no exception | FR-12 |
-| UT-23 | MVP | `AudioPlayer` with a mocked `AudioContext` | context created lazily on first `play`; suspended → `resume()`; second `play` stops the first source; `stop()` stops; missing buffer or no context → no throw, no start | FR-13 |
+| UT-23 | MVP | `AudioPlayer` with a mocked `AudioContext` | context created lazily on first `play`; suspended → `resume()`; second `play` stops the first source; `stop()` stops; missing buffer or no context → no throw, no start; decode failure → 1-frame silent buffer substituted | FR-13 |
 | UT-24 | Great | `computeLayout` vectors: 360×640, 640×360, 1280×800, 360×360, 2000×2000 | (280,210,sliver 28), (336,252,140), (720,540,268), Wc ≤ 0.7·vh·4/3, 720 cap; slot positions per UISPEC §U.7; sliver ≥ 24 whenever vw ≥ 360 | FR-18 |
 | UT-25 | Great | `classifyGesture` table: (dx,dy,dt,maxMove) → `tap`/`swipe`/`cancel` | tuples are `(dx, dy, dt ms, maxMove px)`. tap: (0,0,100,0), (5,5,499,7). Not a tap at dt=500 or maxMove=10. swipe: (−120,10,200,120), (48,0,500,48), (24,0,40,24) (v = 0.6). cancel: (30,0,600,30), (−40,60,300,72) (`|dy|>|dx|`), (12,0,100,12), (15,0,10,15) (under `SWIPE_VELOCITY_MIN_DX_PX`), (0,0,600,0) (long press). Direction: `dx<0` → NEXT, `dx>0` → PREV | FR-20 |
 | UT-26 | MVP | `fitText` with a deterministic `measure(text, px)` stub | font ≤ start size; reduces in 2 px steps to fit `WORD_FIT_FRAC×Wc`; floors at 18 px then signals wrap | FR-14 |
@@ -302,6 +302,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-06 — Copilot — Named the Module 2 test files, extended UT-07/08 with the no-body, early-error, Cache Storage fallback and `loadJson` cases, rewrote UT-09 for typed preload entries with bytes-only audio, moved the silent-buffer check to UT-23, and now verify DEVSPEC v1.2.x.
 
 2026-11-06 — Copilot — Named the Module 1 test files for UT-01…05, aligned UT-01 with the FR-03 result shape, and added the `+`/padded-slug, 128-char `cr_user_id` and boot-time constant cases to UT-03…05.
 
