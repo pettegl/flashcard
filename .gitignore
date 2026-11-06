@@ -1,0 +1,18 @@
+# Ephemeral (DEVSPEC §III.1)
+node_modules/
+dist/
+release/
+coverage/
+test-results/
+playwright-report/
+fixtures/
+
+# Durable production content, owned by the content team (backed up separately)
+content/
+
+# Credentials (never commit)
+.env
+.env.*
+
+# Original brief: background only, not for publication
+docs/Flashcard Spec Brief.md

@@ -1,0 +1,14 @@
+/* UISPEC §U.2 design tokens (colors and type). */
+:root {
+  --bg: #eaf4ff;
+  --card-border: #2b4c7e;
+  --card-border-width: 4px;
+  --card-radius: 16px;
+  --card-front-bg: #ffffff;
+  --card-back-bg: #fff4cc;
+  --word-color: #1b1b1b;
+  --placeholder-bg: #e0e0e0;
+  --focus-ring: #ff8a00;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --font-family: 'Noto Sans', system-ui, sans-serif;
+}

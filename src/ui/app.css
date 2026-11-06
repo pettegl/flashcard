@@ -1,0 +1,55 @@
+/* Targets Chrome >= 80 / iOS Safari >= 13: no `inset`, `aspect-ratio`, `dvh` or `gap` on flex. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--word-color);
+  font-family: var(--font-family);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* S-1 Loading: centered 48 px spinner, 1 s linear rotation (UISPEC §U.3). */
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 5px solid rgba(43, 76, 126, 0.2);
+  border-top-color: var(--card-border);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
