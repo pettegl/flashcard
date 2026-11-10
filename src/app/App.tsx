@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { PlayableCard } from '../data/types';
+import { DeckProvider, useDeck } from '../state/DeckContext';
 import { ErrorScreen, type ErrorCode } from '../ui/ErrorScreen';
 import { LoadingScreen } from '../ui/LoadingScreen';
 import { boot, type ReadyDeck } from './boot';
@@ -46,12 +46,18 @@ function Game({ search = window.location.search }: AppProps) {
     case 'error':
       return <ErrorScreen code={state.code} />;
     case 'ready':
-      return <CurrentCardStandIn card={state.deck.cards[state.deck.index]} />;
+      return (
+        <DeckProvider cards={state.deck.cards} index={state.deck.index}>
+          <CurrentCardStandIn />
+        </DeckProvider>
+      );
   }
 }
 
 // Minimal ready UI (front face of the current card) until the Card component lands in Module 7 (FR-14).
-function CurrentCardStandIn({ card }: { card: PlayableCard }) {
+function CurrentCardStandIn() {
+  const { state } = useDeck();
+  const card = state.cards[state.index];
   return (
     <main className="screen">
       <div className="card-standin" data-testid="card-current" data-card-id={card.cardId}>
