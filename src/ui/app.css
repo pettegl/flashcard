@@ -53,3 +53,53 @@ body {
     animation: none;
   }
 }
+
+/* S-2 Error: 64 px "!" in a circle, code below in 24 px Bold (UISPEC §U.4). */
+.screen--error {
+  flex-direction: column;
+}
+
+.error-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 4px solid var(--card-border);
+  border-radius: 50%;
+  color: var(--card-border);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.error-code {
+  margin: 16px 0 0;
+  color: var(--card-border);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+/* Ready-state stand-in until the Card component (Module 7, UISPEC §U.5). */
+.card-standin {
+  width: 78vw;
+  max-width: 720px;
+  height: 58.5vw;
+  max-height: 70vh;
+  padding: 8px;
+  border: var(--card-border-width) solid var(--card-border);
+  border-radius: var(--card-radius);
+  background: var(--card-front-bg);
+  box-shadow: var(--shadow);
+}
+
+.card-standin__face,
+.card-standin__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.card-standin__image {
+  object-fit: contain;
+}
