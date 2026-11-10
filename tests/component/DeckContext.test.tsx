@@ -47,3 +47,34 @@ describe('CT-14 DeckProvider / useDeck', () => {
     error.mockRestore();
   });
 });
+
+// FR-12: progress is saved from this hook, so it must fire once per change of the current card and never for the seed.
+describe('DeckProvider onIndexChange', () => {
+  function setup() {
+    const onIndexChange = jest.fn();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <DeckProvider cards={CARDS} index={1} onIndexChange={onIndexChange}>
+        {children}
+      </DeckProvider>
+    );
+    const { result } = renderHook(() => useDeck(), { wrapper });
+    return { onIndexChange, deck: () => result.current };
+  }
+
+  it('is not called for the seed index or for flips', () => {
+    const { onIndexChange, deck } = setup();
+    act(() => deck().dispatch({ type: 'FLIP' }));
+    act(() => deck().dispatch({ type: 'FLIP' }));
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  it('is called with the new current card after each index change, not for no-ops', () => {
+    const { onIndexChange, deck } = setup();
+    act(() => deck().dispatch({ type: 'NEXT' }));
+    act(() => deck().dispatch({ type: 'NEXT' })); // past the end: no-op
+    act(() => deck().dispatch({ type: 'GO_TO', index: 0 }));
+    act(() => deck().dispatch({ type: 'GO_TO', index: 0 })); // current: no-op
+
+    expect(onIndexChange.mock.calls.map(([card]) => card.cardId)).toEqual(['cat', 'alligator']);
+  });
+});

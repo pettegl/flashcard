@@ -11,7 +11,7 @@ import { DeckProvider } from '../../src/state/DeckContext';
 import { CurrentCard } from '../../src/ui/Card';
 import type { Measure } from '../../src/ui/fitText';
 
-// CT-01, CT-02, CT-10, CT-12 (FR-14, FR-15, NFR-06; UISPEC §U.5).
+// CT-01, CT-02, CT-03, CT-10, CT-12 (FR-14…FR-16, NFR-06; UISPEC §U.5).
 const ROOT = resolve(__dirname, '../..');
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'));
 
@@ -105,16 +105,6 @@ describe('CT-02 activating the card', () => {
     expect(error).not.toHaveBeenCalled();
   });
 
-  it('the back face is inert at MVP: no flip back, no second play (FR-16 arrives at Better)', () => {
-    const { audio, card } = renderCard();
-    fireEvent.click(card);
-    fireEvent.click(card);
-
-    expect(screen.getByTestId('face-back')).toBeInTheDocument();
-    expect(audio.play).toHaveBeenCalledTimes(1);
-    expect(audio.stop).not.toHaveBeenCalled();
-  });
-
   it.each([
     ['Enter', 'Enter'],
     ['Space', ' '],
@@ -135,6 +125,48 @@ describe('CT-02 activating the card', () => {
 
     expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
     expect(audio.play).not.toHaveBeenCalled();
+  });
+});
+
+describe('CT-03 flipping back and forth (Better, FR-16)', () => {
+  it('clicking the back returns to the front, stops the audio and plays nothing', () => {
+    const { audio, card } = renderCard();
+    fireEvent.click(card);
+    fireEvent.click(card);
+
+    expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
+    expect(screen.getByTestId('face-front').querySelector('img')).toHaveAttribute(
+      'src',
+      './decks/animals/images/alligator.png',
+    );
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.stop).toHaveBeenCalledTimes(1);
+    expect(audio.stop.mock.invocationCallOrder[0]).toBeGreaterThan(audio.play.mock.invocationCallOrder[0]);
+    expect(card).toHaveAccessibleName('Card 1 of 5. Activate to reveal the word.');
+    expect(screen.getByTestId('live-region')).toBeEmptyDOMElement();
+  });
+
+  it('10 clicks alternate the faces and play the audio on each of the 5 reveals', () => {
+    const { audio, card } = renderCard();
+    for (let i = 1; i <= 10; i++) {
+      fireEvent.click(card);
+      expect(screen.getByTestId(i % 2 === 1 ? 'face-back' : 'face-front')).toBeInTheDocument();
+    }
+
+    expect(audio.play).toHaveBeenCalledTimes(5);
+    expect(audio.play.mock.calls.every(([id]) => id === 'alligator')).toBe(true);
+    expect(audio.stop).toHaveBeenCalledTimes(5);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('Enter on the back flips back too', () => {
+    const { audio, card } = renderCard();
+    fireEvent.keyDown(card, { key: 'Enter' });
+    fireEvent.keyDown(card, { key: 'Enter' });
+
+    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.stop).toHaveBeenCalledTimes(1);
   });
 });
 

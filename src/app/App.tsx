@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createAudioPlayer } from '../audio/audioPlayer';
+import type { PlayableCard } from '../data/types';
 import { DeckProvider } from '../state/DeckContext';
+import { saveProgress } from '../storage/progress';
 import { CurrentCard } from '../ui/Card';
 import { ErrorScreen, type ErrorCode } from '../ui/ErrorScreen';
 import { LoadingScreen } from '../ui/LoadingScreen';
@@ -52,13 +54,14 @@ function Game({ search = window.location.search }: AppProps) {
   }
 }
 
-// S-3 (MVP): the first card only; navigation arrives in Better (FR-14, RD-11).
+// S-3: the current card (FR-14…FR-16), resumed from and saved to progress (FR-12). Arrows arrive with FR-17.
 function ReadyScreen({ deck }: { deck: ReadyDeck }) {
   const audio = useMemo(() => createAudioPlayer(deck.cards, deck.preloaded), [deck]);
   useEffect(() => () => audio.stop(), [audio]);
+  const save = useCallback((card: PlayableCard) => saveProgress(deck.params, card.cardId), [deck.params]);
 
   return (
-    <DeckProvider cards={deck.cards} index={deck.index}>
+    <DeckProvider cards={deck.cards} index={deck.index} onIndexChange={save}>
       <main className="screen">
         <CurrentCard audio={audio} />
       </main>

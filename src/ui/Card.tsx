@@ -17,17 +17,17 @@ export interface CurrentCardProps {
   measure?: Measure;
 }
 
-/** The current card wired to the deck state and the audio player (FR-14, FR-15; UISPEC §U.5, §U.11). */
+/** The current card wired to the deck state and the audio player (FR-14…FR-16; UISPEC §U.5, §U.11). */
 export function CurrentCard({ audio, measure = defaultMeasure }: CurrentCardProps) {
   const { state, dispatch } = useDeck();
   const viewport = useViewport();
   const card = state.cards[state.index];
 
-  // FR-15: the flip and the audio start in the same gesture (FR-13). MVP: the back face is inert (FR-16 at Better).
+  // FR-15: the reveal and its audio start in the same gesture (FR-13). FR-16: flipping back stops the audio.
   const activate = () => {
-    if (state.face !== 'front') return;
     dispatch({ type: 'FLIP' });
-    audio.play(card.cardId);
+    if (state.face === 'front') audio.play(card.cardId);
+    else audio.stop();
   };
 
   return (

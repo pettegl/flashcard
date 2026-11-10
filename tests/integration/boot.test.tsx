@@ -9,8 +9,9 @@ import { TextDecoder as NodeTextDecoder } from 'node:util';
 import { App } from '../../src/app/App';
 import { boot, LOAD_GATE_MS } from '../../src/app/boot';
 import { IS_FILE_ORIGIN } from '../../src/platform/env';
+import { saveProgress } from '../../src/storage/progress';
 
-// IT-01…IT-04 (FR-10, FR-06, FR-14, FR-15): boot over the generated fixtures through a mocked file:// XHR.
+// IT-01…IT-05 (FR-10, FR-06, FR-12, FR-14, FR-15): boot over the generated fixtures through a mocked file:// XHR.
 const ROOT = resolve(__dirname, '../..');
 const CONTENT = join(ROOT, 'fixtures', 'content');
 const FONTS = join(ROOT, 'src', 'assets', 'fonts');
@@ -86,9 +87,33 @@ function useVariant(name: string) {
 
 const isBinaryAsset = (url: string) => !url.endsWith('.json');
 
+// jsdom has no localStorage on a file: origin; the container's WebView has one (CR§2.2), so stand it in.
+class MemoryStorage {
+  private items = new Map<string, string>();
+  get length() {
+    return this.items.size;
+  }
+  getItem(key: string) {
+    return this.items.get(key) ?? null;
+  }
+  setItem(key: string, value: string) {
+    this.items.set(key, String(value));
+  }
+  removeItem(key: string) {
+    this.items.delete(key);
+  }
+  clear() {
+    this.items.clear();
+  }
+  key(index: number) {
+    return [...this.items.keys()][index] ?? null;
+  }
+}
+
 beforeEach(() => {
   contentRoot = CONTENT;
   hangs = () => false;
+  Object.defineProperty(window, 'localStorage', { value: new MemoryStorage(), configurable: true });
   FakeXhr.requests = [];
   FakeImage.requests = [];
   setGlobal('XMLHttpRequest', FakeXhr);
@@ -325,5 +350,54 @@ describe('IT-04 loading gate', () => {
     expect(screen.getByTestId('loading')).toBeInTheDocument();
     await act(() => jest.advanceTimersByTimeAsync(1));
     expect(screen.getByTestId('error-code')).toHaveTextContent(/^E2$/);
+  });
+});
+
+// The save half runs through DeckProvider's onIndexChange (CT-14 file); with no arrows yet (FR-17), the
+// navigation to card 4 is the progress it saves, written through saveProgress.
+describe('IT-05 resume', () => {
+  const ANIMALS_SCOPE = { lang: 'english', deck: 'animals' };
+
+  it('restores card 4 (dog) on its front face, also after a remount, and preloads around it', async () => {
+    saveProgress(ANIMALS_SCOPE, 'dog');
+    const first = render(<App search={VALID} />);
+
+    const current = await screen.findByTestId('card-current');
+    expect(current).toHaveAttribute('data-card-id', 'dog');
+    expect(current).toHaveAccessibleName('Card 4 of 5. Activate to reveal the word.');
+    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
+    // The critical batch starts with the restored card, then its neighbours.
+    expect(FakeImage.requests.slice(0, 3)).toEqual(
+      ['dog', 'cat', 'elephant'].map((id) => `./decks/animals/images/${id}.png`),
+    );
+
+    first.unmount();
+
+    render(<App search={VALID} />);
+    expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'dog');
+    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(window.localStorage.getItem('flashcard:v1:english:animals')).toBe('{"card_id":"dog"}');
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an unknown stored id', '{"card_id":"ghost"}'],
+    ['corrupt JSON', '{"card_id":'],
+  ])('with %s, starts on card 0 with a warning and no error', async (_label, raw) => {
+    window.localStorage.setItem('flashcard:v1:english:animals', raw);
+    render(<App search={VALID} />);
+
+    expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'alligator');
+    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(warn.mock.calls.some(([message]) => /^\[flashcard\] saved /.test(String(message)))).toBe(true);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('progress of another language does not leak into this one', async () => {
+    saveProgress({ lang: 'spanish', deck: 'animals' }, 'dog');
+    render(<App search={VALID} />);
+    expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'alligator');
   });
 });

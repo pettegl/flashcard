@@ -21,8 +21,8 @@ export function initDeckState({ cards, index }: { cards: readonly PlayableCard[]
 export function deckReducer(state: DeckState, action: DeckAction): DeckState {
   switch (action.type) {
     case 'FLIP':
-      // MVP: front→back only; Better makes it a toggle (FR-16).
-      return state.face === 'front' ? { ...state, face: 'back' } : state;
+      // Better: toggles, without limit (FR-16).
+      return { ...state, face: state.face === 'front' ? 'back' : 'front' };
     case 'NEXT':
       return goTo(state, state.index + 1);
     case 'PREV':

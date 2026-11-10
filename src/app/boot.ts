@@ -5,6 +5,7 @@ import { validateWords } from '../data/validateWords';
 import { parseLaunchParams, type LaunchParams } from '../platform/launchParams';
 import { loadJson } from '../platform/loadBinary';
 import { preload, type PreloadAsset, type PreloadResult } from '../platform/preload';
+import { restoreIndex } from '../storage/progress';
 
 // FR-10: boot sequence and loading gate (DEVSPEC §I.2.5).
 export const LOAD_GATE_MS = 5000;
@@ -62,8 +63,8 @@ export async function boot(search: string): Promise<BootResult> {
     return { ok: false, code: error.code };
   }
 
-  // (4) Progress restore (FR-12) arrives with Module 5; the MVP always starts on the first card (RD-11).
-  const index = 0;
+  // (4) Resume on the saved card (FR-12); anything unusable starts on the first card.
+  const index = restoreIndex(params, cards);
 
   // (5) Critical assets race the gate; (7) the rest follow in the background once they settle.
   const preloaded = new Map<string, PreloadResult>();

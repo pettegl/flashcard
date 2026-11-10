@@ -72,15 +72,19 @@ describe('UT-17 GO_TO', () => {
   });
 });
 
-describe('UT-19 FLIP (MVP: front→back only)', () => {
-  it('FLIP on front reveals the back without moving', () => {
-    expect(deckReducer(at(1), { type: 'FLIP' })).toEqual(at(1, 'back'));
+describe('UT-18 FLIP toggles (Better, FR-16)', () => {
+  it('FLIP twice goes front→back→front without moving', () => {
+    const back = deckReducer(at(1), { type: 'FLIP' });
+    expect(back).toEqual(at(1, 'back'));
+    const front = deckReducer(back, { type: 'FLIP' });
+    expect(front).toEqual(at(1, 'front'));
+    expect(front).not.toBe(back);
   });
 
-  it('FLIP on back stays back (same state object)', () => {
-    const back = at(1, 'back');
-    expect(deckReducer(back, { type: 'FLIP' })).toBe(back);
-    expect(run(at(1), { type: 'FLIP' }, { type: 'FLIP' }, { type: 'FLIP' })).toEqual(back);
+  it('flips without limit', () => {
+    const flips = Array.from({ length: 10 }, (): DeckAction => ({ type: 'FLIP' }));
+    expect(run(at(3), ...flips)).toEqual(at(3, 'front'));
+    expect(run(at(3), ...flips.slice(1))).toEqual(at(3, 'back'));
   });
 });
 
