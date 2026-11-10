@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.6.0 · **Last updated:** 2026-11-10
+**Status:** Draft · **Version:** 1.7.0 · **Last updated:** 2026-11-10
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -171,9 +171,9 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-13 | MVP | `AudioPlayer` uses one shared Web Audio `AudioContext` (created lazily on the first user gesture; `resume()` if suspended). `play(cardId)` stops any currently playing source, then starts the card's decoded buffer. `stop()` is called on any navigation and on flip to front. A card with no/failed audio plays nothing and raises no error. Buffers are decoded from `loadBinary` data (the bytes preloaded by FR-06) once the context exists; a decode failure yields a 1-frame silent `AudioBuffer`. Audio starts **at the moment the flip starts** (not after the animation). | PR-02, PR-16 |
+| FR-13 | MVP | `createAudioPlayer(cards, preloaded)` returns an `AudioPlayer` `{play(cardId), stop()}` that uses one shared Web Audio `AudioContext` (created lazily on the first `play`, which is called from a user gesture; `AudioContext`, else `webkitAudioContext`; `resume()` whenever its state is not `running`). `play(cardId)` stops any currently playing source, then starts the card's decoded buffer. `stop()` is called on any navigation and on flip to front; it also cancels a clip still being decoded, so a decode that settles after `stop()` or a newer `play()` never starts. A card with no audio, failed audio or bytes not preloaded yet plays nothing and raises no error; Web Audio missing or failing to construct gives silent reveals with one `[flashcard]` warning. Each card's bytes are read from `preloaded` (FR-06/FR-10, so bytes added later by the background batch are used) at its first `play`, decoded once with the callback form of `decodeAudioData` (iOS Safari 13) on a **copy** (decoding detaches its input) and cached; a decode failure yields a 1-frame silent `AudioBuffer`. No call ever throws into gameplay. Audio starts **at the moment the flip starts** (not after the animation). | PR-02, PR-16 |
 
-**Exit:** UT-23 passes; E2E-03 observes exactly one `AudioBufferSourceNode.start` per reveal.
+**Exit:** UT-23 passes. E2E-03 (one `AudioBufferSourceNode.start` per reveal) needs the card and is verified in the Module 7 exits (RD-20).
 
 ### Module 7 — MVP card (see UISPEC §U.5)
 
@@ -183,7 +183,7 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 | FR-15 | MVP | Activating the card while `face='front'` dispatches `FLIP` and calls `AudioPlayer.play`. | PR-02 |
 | FR-16 | Better | Activating the card while `face='back'` dispatches `FLIP` (→ front) and calls `AudioPlayer.stop`; no audio plays. Unlimited repetition; audio plays on **every** `front→back`. | PR-07 |
 
-**Exit (MVP):** AC-05…AC-10 pass. **Exit (Better, FR-16):** AC-11, AC-12 pass.
+**Exit (MVP):** AC-05…AC-10 pass, including E2E-03 (one audio start per reveal, FR-13). **Exit (Better, FR-16):** AC-11, AC-12 pass, including E2E-15 (5 audio starts in 10 alternating taps) (RD-20).
 
 ### Module 8 — Better navigation
 
@@ -425,7 +425,7 @@ npm run verify:release
 
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
-| MS1 | MVP | 0–4, 5 (FR-11), 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4 and Module 5 (FR-11) Done (tested) and Approved 2026-11-10; Modules 6, 7 Not started) |
+| MS1 | MVP | 0–4, 5 (FR-11), 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4, Module 5 (FR-11) and Module 6 Done (tested) and Approved 2026-11-10; Module 7 Not started) |
 | MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | Not started |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
@@ -481,6 +481,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | OQ-9 | May the core ZIP use `decks/` and the lang ZIP deck-prefixed names inside `lang/<lang>/`? | FR-27 | Yes, per CR§5.2 disjoint-subtree rule |
 | OQ-10 | Who produces tile icons (per deck × language)? | FR-29 | Content team, true PNG ≥ 512×512 |
 | OQ-11 | Which scripts must render at launch (beyond Latin)? | none | Latin + Latin Extended (bundled Noto Sans); others fall back to system font |
+| OQ-13 | When the child reaches a card whose audio bytes the background batch has not loaded yet, should `play` load them on demand (late audio) instead of revealing silently? And should decoded buffers be capped for a 100-card session on low-end devices (MAN-06)? | FR-13 at Better (navigation); not MVP, whose only card is in the critical batch | Silent reveal; decoded buffers cached for the session |
 
 ## Appendix B — Resolved Decisions
 
@@ -505,6 +506,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | RD-17 | 2026-11-10 | Content paths (deck `image`, words `audio`) also reject `\`, `%`, `?`, `#`, tab/CR/LF and empty segments, and match extensions in any case. A words entry that breaks a card-level rule is dropped with a warning instead of failing the file; `DeckError` carries the screen code (`E2`/`E3`) and the full problem list. | Owner approval of Module 3. The URL parser maps `\` to `/`, decodes `%2e%2e` to `..` and strips tab/LF, so "no `..`" alone does not keep a path inside its folder; `.PNG` is a harmless content-team habit. Dropping one entry follows design principle II.1.3, and a code on the error lets boot (FR-10) pick the screen without re-classifying. |
 | RD-18 | 2026-11-10 | Boot (FR-10) starts on card 0 until FR-12 ships at Better; the critical batch puts the current card before the fonts and the neighbours; the background batch starts only after the critical batch settles and loads nearest-first; every preload has a per-asset `LOAD_GATE_MS` timeout; a non-`DeckError` exception during boot is E9. Until the MVP card (Module 7) ships, the ready UI is a stand-in showing the current card's front with the `card-current`/`face-front` hooks. | Owner approval of Module 4. FR-10 step (4) cited FR-12 inside MS1, which excludes FR-12 and shows only the first card (RD-11). With `PRELOAD_CONCURRENCY` 4 the current card's image and audio load first; starting the background batch after the critical one keeps ≤ 4 requests in flight, and the per-asset timeout frees the slot of a hung file so the rest still load. Classifying unknown exceptions as E9 keeps E2 meaning "bad data". |
 | RD-19 | 2026-11-10 | Module 5 is split by tier: FR-11 ships in MS1 with the MVP one-way `FLIP` (UT-19); FR-12 and the toggling `FLIP` (UT-18, FR-16) ship together at Better, when UT-19 is deleted. The deck state lives in `DeckProvider`/`useDeck`, seeded once from the boot result; a no-op action returns the unchanged state object, so React skips the re-render. | Owner decision at Module 5. The Module 5 exit listed UT-15…UT-22, which mixes tiers and requires the contradictory UT-18 and UT-19; MS1 lists FR-11 but excluded Module 5, and MS2 owns FR-12 (RD-11, RD-18). |
+| RD-20 | 2026-11-10 | The Module 6 exit is UT-23 only; E2E-03 moves to the Module 7 MVP exit as a single tap → one audio start, and its 10-alternating-taps half becomes E2E-15 in the Module 7 Better exit (FR-16). The `AudioPlayer` is built by `createAudioPlayer(cards, preloaded)` and reads bytes at play time (FR-13). | Owner approval of Module 6. E2E-03 taps the card, which arrives with FR-15 (Module 7), and back-to-front taps need FR-16 (Better), so no Module 6 build could pass it. Reading the shared `preloaded` map at play time picks up the background batch without extra wiring. |
 ## Appendix C — Out of Scope
 
 NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container changes, per-language font packs, analytics dashboards.
@@ -531,10 +533,14 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-10 | jsdom never fires `load` on `Image` (no resource loading), so boot tests need a fake `Image`; a per-file `@jest-environment-options {"url": "file:///…"}` makes `IS_FILE_ORIGIN` true so `loadBinary` takes the XHR path; `ArrayBuffer`s read through `node:fs` fail `expect.any(ArrayBuffer)` (another realm), so assert on `byteLength`. | Integrated (`tests/integration/boot.test.tsx`) |
 | 2026-11-10 | FR-10 step (4) "restore progress (FR-12)" sat in an MS1 module although MS1 excludes FR-12 and the MVP shows only the first card (RD-11). | Integrated (FR-10, RD-18) |
 | 2026-11-10 | The Module 5 exit "UT-15…UT-22" required both UT-18 (Better: `FLIP` toggles) and UT-19 (MVP: `FLIP` on back stays back), which no single reducer passes; MS1 listed FR-11 but not Module 5. Exits that span tiers must be split per tier, as Module 7 already does. | Integrated (Module 5 exit, §III.5 MS1, RD-19; TESTSPEC §5) |
+| 2026-11-10 | The Module 6 exit named E2E-03, which needs the tappable card of a later module (FR-15, Module 7) and FR-16 (Better). An exit may only name tests that the module and the ones before it can pass; check this when writing an exit, not when reaching it. | Integrated (Module 6 and Module 7 exits, RD-20; TESTSPEC E2E-03, E2E-15) |
+| 2026-11-10 | The iOS Safari 13 target (NFR-07) has only `webkitAudioContext` and a callback-only `decodeAudioData`; `decodeAudioData` detaches the `ArrayBuffer` it is given, so decoding the preloaded bytes directly would empty them; jsdom has no Web Audio, so UT-23 installs a fake `AudioContext` on `window`. | Integrated (FR-13; `tests/unit/audioPlayer.test.ts`) |
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Recorded Module 6 as done and approved, detailed the FR-13 `AudioPlayer` contract (`createAudioPlayer`, `webkitAudioContext` fallback, callback decoding of a copy of the bytes, decode cache, cancelling a late decode, bytes read at play time), moved E2E-03 from the Module 6 exit to the Module 7 exits with its Better half as E2E-15 (RD-20), added OQ-13 and two Lessons Log entries.
 
 2026-11-10 — Copilot — Recorded Module 5 (FR-11, MVP) as done and approved, split the Module 5 exit into MVP and Better parts and added Module 5 (FR-11) to MS1 (RD-19), clarified FR-11 no-ops (non-integer `GO_TO`, unchanged state object) and the `DeckProvider`/`useDeck` holder, and added a Lessons Log entry.
 

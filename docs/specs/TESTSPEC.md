@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.6.0 · **Last updated:** 2026-11-10
-**Verifies:** DEVSPEC v1.6.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.7.0 · **Last updated:** 2026-11-10
+**Verifies:** DEVSPEC v1.7.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -95,7 +95,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-20 | MVP | Any index change while `face:'back'` | new `face:'front'`; the previous state is not mutated | FR-11 |
 | UT-21 | Better | Save then restore progress | restores the saved `card_id` index, face `front` | FR-12 |
 | UT-22 | Better | Stored id unknown; corrupt JSON; `localStorage` throws on get/set | index 0; no exception | FR-12 |
-| UT-23 | MVP | `AudioPlayer` with a mocked `AudioContext` | context created lazily on first `play`; suspended → `resume()`; second `play` stops the first source; `stop()` stops; missing buffer or no context → no throw, no start; decode failure → 1-frame silent buffer substituted | FR-13 |
+| UT-23 | MVP | `AudioPlayer` with a mocked `AudioContext` installed on `window` (`tests/unit/audioPlayer.test.ts`): first `play`; `webkitAudioContext` only; state `suspended`/`interrupted`/`running`; replay of a decoded card; two `play`s, or `play` + `play` of the same card, before the decode settles; `stop()` before the decode settles; `stop()` twice and after the source ended; card with no audio URL, failed preload, bytes not preloaded yet, unknown id; bytes added to `preloaded` after creation; Web Audio absent or its constructor throwing; decode failure via callback-only and promise-returning `decodeAudioData`, and a synchronous throw; `resume()` rejecting or throwing; `start()` throwing | context created lazily on first `play`, once, `webkitAudioContext` as fallback; not `running` → `resume()`; second `play` stops the first source; `stop()` stops (once); a decode that settles after `stop()` or a newer `play()` starts nothing; each card decoded once, from a copy (the preloaded bytes keep their length), and a decoded card replays synchronously; missing buffer or no context → no throw, no start (one `[flashcard]` warning when Web Audio is unavailable); later bytes are used; decode failure → 1-frame silent buffer substituted, with a warning; resume/start failures warn and never throw | FR-13 |
 | UT-24 | Great | `computeLayout` vectors: 360×640, 640×360, 1280×800, 360×360, 2000×2000 | (280,210,sliver 28), (336,252,140), (720,540,268), Wc ≤ 0.7·vh·4/3, 720 cap; slot positions per UISPEC §U.7; sliver ≥ 24 whenever vw ≥ 360 | FR-18 |
 | UT-25 | Great | `classifyGesture` table: (dx,dy,dt,maxMove) → `tap`/`swipe`/`cancel` | tuples are `(dx, dy, dt ms, maxMove px)`. tap: (0,0,100,0), (5,5,499,7). Not a tap at dt=500 or maxMove=10. swipe: (−120,10,200,120), (48,0,500,48), (24,0,40,24) (v = 0.6). cancel: (30,0,600,30), (−40,60,300,72) (`|dy|>|dx|`), (12,0,100,12), (15,0,10,15) (under `SWIPE_VELOCITY_MIN_DX_PX`), (0,0,600,0) (long press). Direction: `dx<0` → NEXT, `dx>0` → PREV | FR-20 |
 | UT-26 | MVP | `fitText` with a deterministic `measure(text, px)` stub | font ≤ start size; reduces in 2 px steps to fit `WORD_FIT_FRAC×Wc`; floors at 18 px then signals wrap | FR-14 |
@@ -162,7 +162,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 |---|---|---|---|---|
 | E2E-01 | MVP | Open `animals`/`english` offline (`tests/e2e/e2e-01-boot.spec.ts`); then open without `cr_lang` | `loading` rendered (§3.3 init script, `role="status"`, name "Loading", no text) then gone; `card-current` (`alligator`, image decoded at 800 px natural width) visible in < 10 s; every request scheme ∈ {`file`, `data`, `blob`}; zero `console.error`/page errors. Without `cr_lang`: E1 alert and no `decks/`/`lang/` request | FR-10, AC-01, AC-02, NFR-02, K-1 |
 | E2E-02 | MVP | Record requests and console during load + a full pass through all cards | every request scheme ∈ {`file`, `data`, `blob`}; zero `console.error`; no uncaught exceptions | NFR-01, NFR-10, K-2 |
-| E2E-03 | MVP | Tap current card; then 10 alternating taps (waiting out each flip) | `__audioStarts` +1 per reveal (5 of 10 taps); back face shows the word; front shows image | FR-13, FR-15, AC-07, AC-12 |
+| E2E-03 | MVP | Tap current card once | `__audioStarts` becomes 1; back face shows the word; no image shown | FR-13, FR-15, AC-07 |
 | E2E-04 | Great | Touch gestures at slow/fast/short/vertical/12 px-move variants and swipe past each end | outcomes exactly as AC-20…AC-25 (current card id after each); rubber-band displacement ≈ 30% (±5%) | FR-20, AC-20…25 |
 | E2E-05 | Great | Tap right peek, then left peek | `dog` then `cat` current, fronts shown, window rotates | FR-19, AC-18, AC-19 |
 | E2E-06 | Better | Navigate to `dog`, reload; then clear storage and reload | resumes on `dog` front; then `alligator`; saved key `flashcard:v1:english:animals` holds only `card_id` | FR-12, AC-36 |
@@ -174,6 +174,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | E2E-12 | Quality | `@axe-core/playwright` on loading, front, back, error screens | no serious/critical violations; contrast ≥ 7:1 for word | FR-23, NFR-09, AC-35 |
 | E2E-13 | Quality | Keyboard-only: Tab to card, Enter, ArrowRight ×2, Space | flows per AC-33; focus ring visible (screenshot/outline computed style) | FR-23, AC-33 |
 | E2E-14 | MVP | `long-word` variant reveal `cat`; `spanish` language reveal all | long word fully inside card (bounding box); `Caimán`, `Oso`… render with diacritics | AC-08, PR-05 |
+| E2E-15 | Better | From the front of the current card, 10 alternating taps (waiting out each flip) | `__audioStarts` +1 per reveal (5 of 10 taps), none on back → front; back face shows the word; front shows the image | FR-13, FR-16, AC-12 |
 | SEC-01 | MVP | Launch with `cr_book=../x`, `cr_lang=%2e%2e` | E1 shown; zero content requests issued | FR-03, NFR-06, AC-02 |
 | PERF-01 | MVP | `bigdeck` (100 cards), CPU throttle 4×, offline | ready UI < 10 s; no long task > 500 ms during boot | NFR-02, FR-10 |
 | PERF-02 | Better | `performance.now()` from `pointerdown`/`click` to the first style change that starts the flip, 20 samples on the reference device (and CI baseline) | median ≤ 100 ms | NFR-03, K-3 |
@@ -195,7 +196,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 |---|---|---|
 | Module done | DEVSPEC module implemented | its listed tests pass; coverage thresholds (NFR-08) not regressed |
 | MS1 MVP | Modules 0–4, 5 (FR-11), 6, 7 | UT-01…17, 19, 20, 23, 26, 32; CT-01, 02, 09, 10, 12, 14; IT-01…04; BLD-01…03; PKG-09; E2E-01…03, 14; SEC-01; PERF-01 pass |
-| MS2 Better | MS1 + FR-12, FR-16, FR-17 | + UT-18, 21, 22; CT-03, 04; IT-05; E2E-06; PERF-02; UT-19 **deleted** |
+| MS2 Better | MS1 + FR-12, FR-16, FR-17 | + UT-18, 21, 22; CT-03, 04; IT-05; E2E-06, 15; PERF-02; UT-19 **deleted** |
 | MS3 Great | MS2 + Modules 9–10 | + UT-24, 25; CT-05…08, 11, 13; E2E-04, 05, 09…13; CT-04 **deleted** |
 | MS4 Telemetry | MS3 + Module 11 | UT-27…31; E2E-07, 08 |
 | MS5 Release | MS4 + Module 12 | PKG-01…13; MAN-01…06 signed off; `npm run verify:release` clean |
@@ -232,10 +233,10 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | FR-10 | UT-32, IT-01, IT-02, IT-04, E2E-01, CT-09, PERF-01 |
 | FR-11 | UT-15…20, CT-14 |
 | FR-12 | UT-21, UT-22, IT-05, E2E-06 |
-| FR-13 | UT-23, E2E-03 |
+| FR-13 | UT-23, E2E-03, E2E-15 |
 | FR-14 | CT-01, CT-10, UT-26, E2E-10, E2E-14 |
 | FR-15 | CT-02, E2E-03 |
-| FR-16 | CT-03, UT-18 |
+| FR-16 | CT-03, UT-18, E2E-15 |
 | FR-17 | CT-04, CT-13 |
 | FR-18 | UT-24, CT-05, E2E-10, E2E-11 |
 | FR-19 | CT-06, E2E-05 |
@@ -274,7 +275,7 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | AC-09 | CT-10, IT-03 |
 | AC-10 | IT-03 |
 | AC-11 | CT-03 |
-| AC-12 | CT-03, E2E-03 |
+| AC-12 | CT-03, E2E-15 |
 | AC-13 | CT-04, UT-20 |
 | AC-14 | CT-04 |
 | AC-15 | CT-05, E2E-10 |
@@ -305,6 +306,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Named the UT-23 test file and extended it with the `webkitAudioContext`, `interrupted`, decode-once/copy, late-decode cancellation, not-yet-preloaded, later-bytes, constructor-throws, promise/sync decode-failure and resume/start-failure cases (independent additions beyond FR-13 as first written), split E2E-03 into an MVP single reveal and a new Better E2E-15 for the 10 alternating taps (DEVSPEC RD-20) with the MS2 gate and traceability updated, and now verify DEVSPEC v1.7.x.
 
 2026-11-10 — Copilot — Named the Module 5 test files, added CT-14 (`DeckProvider`/`useDeck`) to FR-11 and the MS1 gate, extended UT-16, UT-17, UT-19 and UT-20 with the one-card deck, `NaN`/`±Infinity`, same-state-object and no-mutation cases (independent additions beyond FR-11 as first written), added Module 5 (FR-11) to the MS1 entry, and now verify DEVSPEC v1.6.x.
 
