@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.8.0 · **Last updated:** 2026-11-10
-**Verifies:** DEVSPEC v1.8.x (`FR-`, `NFR-`) and UISPEC v1.1.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.9.0 · **Last updated:** 2026-11-10
+**Verifies:** DEVSPEC v1.9.x (`FR-`, `NFR-`) and UISPEC v1.1.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -90,11 +90,11 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-15 | MVP | Reducer initial state (UT-15…UT-20 in `tests/unit/deckReducer.test.ts`) | `index`, `face:'front'` as supplied | FR-11 |
 | UT-16 | MVP | `NEXT`/`PREV` at bounds; walk past both ends; one-card deck | no-op (no wrap), same state object, face kept | FR-11 |
 | UT-17 | MVP | `GO_TO` valid, current, negative, = n, > n, non-integer, `NaN`, `±Infinity` | valid moves; others no-op (same state object) | FR-11 |
-| UT-18 | Better | `FLIP` twice | `front→back→front` | FR-11, FR-16 |
-| UT-19 | MVP *(retired at Better)* | `FLIP` on back | stays `back` (same state object) | FR-11 |
+| UT-18 | Better | `FLIP` twice; 10 and 9 `FLIP`s from the front | `front→back→front` (a new state object each time, index unchanged); 10 → front, 9 → back | FR-11, FR-16 |
+| UT-19 | MVP *(deleted at Better with FR-16, RD-19)* | `FLIP` on back | stays `back` (same state object) | FR-11 |
 | UT-20 | MVP | Any index change while `face:'back'` | new `face:'front'`; the previous state is not mutated | FR-11 |
-| UT-21 | Better | Save then restore progress | restores the saved `card_id` index, face `front` | FR-12 |
-| UT-22 | Better | Stored id unknown; corrupt JSON; `localStorage` throws on get/set | index 0; no exception | FR-12 |
+| UT-21 | Better | Save then restore progress (UT-21, UT-22 in `tests/unit/progress.test.ts`); save twice; save for another language/deck; nothing saved | `localStorage` holds exactly one key `flashcard:v1:<lang>:<deck>` (no user id) with value `{"card_id":"dog"}`; restore gives the saved `card_id`'s index, face `front`; the latest save wins; each language/deck keeps its own progress; nothing saved → index 0 without a warning | FR-12 |
+| UT-22 | Better | Stored id unknown; corrupt values (invalid JSON, `null`, a bare string, an array, a non-string `card_id`, no `card_id`); `localStorage` `getItem`/`setItem` throwing; `localStorage` itself inaccessible | index 0 with a `[flashcard]` warning; save and restore never throw | FR-12 |
 | UT-23 | MVP | `AudioPlayer` with a mocked `AudioContext` installed on `window` (`tests/unit/audioPlayer.test.ts`): first `play`; `webkitAudioContext` only; state `suspended`/`interrupted`/`running`; replay of a decoded card; two `play`s, or `play` + `play` of the same card, before the decode settles; `stop()` before the decode settles; `stop()` twice and after the source ended; card with no audio URL, failed preload, bytes not preloaded yet, unknown id; bytes added to `preloaded` after creation; Web Audio absent or its constructor throwing; decode failure via callback-only and promise-returning `decodeAudioData`, and a synchronous throw; `resume()` rejecting or throwing; `start()` throwing | context created lazily on first `play`, once, `webkitAudioContext` as fallback; not `running` → `resume()`; second `play` stops the first source; `stop()` stops (once); a decode that settles after `stop()` or a newer `play()` starts nothing; each card decoded once, from a copy (the preloaded bytes keep their length), and a decoded card replays synchronously; missing buffer or no context → no throw, no start (one `[flashcard]` warning when Web Audio is unavailable); later bytes are used; decode failure → 1-frame silent buffer substituted, with a warning; resume/start failures warn and never throw | FR-13 |
 | UT-24 | Great | `computeLayout` vectors: 360×640, 640×360, 1280×800, 360×360, 2000×2000 | (280,210,sliver 28), (336,252,140), (720,540,268), Wc ≤ 0.7·vh·4/3, 720 cap; slot positions per UISPEC §U.7; sliver ≥ 24 whenever vw ≥ 360 | FR-18 |
 | UT-25 | Great | `classifyGesture` table: (dx,dy,dt,maxMove) → `tap`/`swipe`/`cancel` | tuples are `(dx, dy, dt ms, maxMove px)`. tap: (0,0,100,0), (5,5,499,7). Not a tap at dt=500 or maxMove=10. swipe: (−120,10,200,120), (48,0,500,48), (24,0,40,24) (v = 0.6). cancel: (30,0,600,30), (−40,60,300,72) (`|dy|>|dx|`), (12,0,100,12), (15,0,10,15) (under `SWIPE_VELOCITY_MIN_DX_PX`), (0,0,600,0) (long press). Direction: `dx<0` → NEXT, `dx>0` → PREV | FR-20 |
@@ -112,8 +112,8 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | ID | Tier | Title / steps | Expected | Verifies |
 |---|---|---|---|---|
 | CT-01 | MVP | Render a card (front) (CT-01, CT-02, CT-10, CT-12 in `tests/component/Card.test.tsx`, with `tokens.css`/`app.css` injected); then resize the jsdom viewport | bordered area with `<img>` of card 0; no word in DOM visible; `alt=""`; `draggable=false`; `object-fit: contain`; `role="button"`, focusable, named per UISPEC §U.10; sized `Wc × Hc` (716×537 at 1024×768) and resized on `resize` (280×210 at 360×640) | FR-14, AC-05 |
-| CT-02 | MVP | Click current card; `Enter`, `Space`; other keys and auto-repeat; click the back; word fitting with a stub measure (Cat, Alligator, 40-character word at 360×640) | `face-back` shows `Alligator`, no image; `AudioPlayer.play('alligator')` called once; `Enter`/`Space` reveal too; other keys and repeats do nothing; the back is inert at MVP (no flip back, no second `play`); live region holds the word; font sizes per UT-26 with the word box ≤ `WORD_FIT_FRAC × Wc` | FR-15, AC-07, AC-08 |
-| CT-03 | Better | Click twice | back to front; `stop` called; `play` not called second time; 10 clicks → 5 `play` calls | FR-16, AC-11, AC-12 |
+| CT-02 | MVP | Click current card; `Enter`, `Space`; other keys and auto-repeat; word fitting with a stub measure (Cat, Alligator, 40-character word at 360×640) | `face-back` shows `Alligator`, no image; `AudioPlayer.play('alligator')` called once; `Enter`/`Space` reveal too; other keys and repeats do nothing; live region holds the word; font sizes per UT-26 with the word box ≤ `WORD_FIT_FRAC × Wc`. *(Its MVP "click the back → inert" case was deleted at Better; CT-03 replaces it.)* | FR-15, AC-07, AC-08 |
+| CT-03 | Better | Click twice; 10 clicks; `Enter` twice (in `tests/component/Card.test.tsx`) | back to front with the image; `stop` called once, after `play`; `play` not called second time; name and live region back to the front state; 10 clicks alternate the faces → 5 `play` and 5 `stop` calls; `Enter` on the back flips back too | FR-16, AC-11, AC-12 |
 | CT-04 | Better *(retired at Great)* | `NavArrows` | Next → card 2 front, audio stopped; Prev disabled on first, Next disabled on last (`aria-disabled`) | FR-17, AC-13, AC-14 |
 | CT-05 | Great | Carousel at index 2, 0, 4 | index 2: current + both peeks (front faces); index 0: no left peek; index 4: no right peek; render window ≤ current±2 | FR-18, AC-15, AC-16 |
 | CT-06 | Great | Click right/left peek | `GO_TO(±1)`, no flip, `stop` called | FR-19, AC-18, AC-19 |
@@ -124,7 +124,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | CT-11 | Quality | Accessibility semantics | names exactly per UISPEC §U.10 (e.g. "Card 1 of 5. Activate to reveal the word."); inactive face `aria-hidden`; live region announces the word; Enter/Space flip; ArrowLeft/Right navigate; keys ignored during lock; all app strings come from `strings.ts` | FR-23, AC-33, AC-34, NFR-11 |
 | CT-12 | MVP | Render `html-word` variant on reveal | literal text shown; no element/script created | NFR-06 |
 | CT-13 | Great | Render Great layout | no element with name "Previous card"/"Next card" buttons from `NavArrows` | FR-17, AC-17 |
-| CT-14 | MVP | `DeckProvider`/`useDeck` (`tests/component/DeckContext.test.tsx`): seed `{cards, index: 1}`, dispatch `FLIP` then `NEXT`; render children; `useDeck` outside a provider | state seeded on the front face; `FLIP` → back, `NEXT` → index 2 front (actions go through the FR-11 reducer); children rendered; outside a provider throws a `[flashcard]` error | FR-11 |
+| CT-14 | MVP | `DeckProvider`/`useDeck` (`tests/component/DeckContext.test.tsx`): seed `{cards, index: 1}`, dispatch `FLIP` then `NEXT`; render children; `useDeck` outside a provider. **Better:** with `onIndexChange`, dispatch `FLIP` ×2, then `NEXT`, `NEXT` past the end, `GO_TO(0)`, `GO_TO(0)` again | state seeded on the front face; `FLIP` → back, `NEXT` → index 2 front (actions go through the FR-11 reducer); children rendered; outside a provider throws a `[flashcard]` error. Better: `onIndexChange` is not called for the seed or flips, and is called once per real index change with the new card (`cat`, then `alligator`), never for no-ops | FR-11, FR-12 |
 
 ### 4.3 Integration (mock XHR over fixtures)
 
@@ -134,7 +134,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | IT-02 | MVP | Boot with `missing-words`, `corrupt-json`, `bad-schema`; boot with `no-playable`; bad params (missing `cr_lang`, missing `cr_book`, `..%2Fx`, upper case, empty query) | `E2`, `E2`, `E2`; `E3`; `E1` (no XHR and no image request issued for bad params; no image request for E2/E3); a `[flashcard] E#:` warning for E2/E3; `console.error` never called | FR-10, AC-02…04 |
 | IT-03 | MVP | Boot the primary content (control), `missing-image`, `missing-audio`, `missing-word-one` (fake `AudioContext` counting starts; canvas metrics stubbed off) and reveal the first card | ready screen; control reveal starts audio once; `missing-image`: after the image `error` the placeholder shows and the reveal still shows the word; `missing-audio`: word shown, zero audio starts, no error; `missing-word-one`: "Card 1 of 4", `dog` skipped with a `[flashcard]` warning naming it; `console.error` never called | FR-06, NFR-05, AC-09, AC-10 |
 | IT-04 | MVP | Every image (`Image`), audio and font request never completes (hang), with fake timers; separately the deck file XHR hangs | still loading at `LOAD_GATE_MS − 1`; at `LOAD_GATE_MS` the ready UI renders, the loading screen is gone and a gate warning is logged; before the gate only the first `PRELOAD_CONCURRENCY` critical assets are in flight (the background batch waits for the critical one); after the hung assets time out every card image is still requested; a hanging deck file shows E2 at `LOAD_GATE_MS` | FR-10 |
-| IT-05 | Better | Navigate to card 4, remount app | restored on card 4 front; with unknown stored id → card 0 | FR-12, AC-36 |
+| IT-05 | Better | In `tests/integration/boot.test.tsx`, with an in-memory `localStorage` stand-in (jsdom has none on a `file:` origin). **Restore part (Module 5):** progress saved for `dog` (card 4), boot, remount; stored unknown id, corrupt JSON; progress saved only for `spanish`. **Navigation part (Module 8):** navigate to card 4 with the Next arrow, remount | restored on card 4 (`dog`) front, named "Card 4 of 5…", the critical preload starts with `dog`, then `cat`, `elephant`; still `dog` after the remount, with no warning; unknown/corrupt → card 0 with a `[flashcard] saved …` warning, no `console.error`; another language's progress is ignored (card 0). Navigation part: restored on card 4 front | FR-12, AC-36 |
 
 ### 4.4 Build and packaging
 
@@ -175,7 +175,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | E2E-12 | Quality | `@axe-core/playwright` on loading, front, back, error screens | no serious/critical violations; contrast ≥ 7:1 for word | FR-23, NFR-09, AC-35 |
 | E2E-13 | Quality | Keyboard-only: Tab to card, Enter, ArrowRight ×2, Space | flows per AC-33; focus ring visible (screenshot/outline computed style) | FR-23, AC-33 |
 | E2E-14 | MVP | `long-word` variant reveal `alligator`; `spanish` language reveal the current card (`tests/e2e/e2e-14-word-fit.spec.ts`) | long word fully inside card (bounding box), no overflow of its own box beyond 1 px rounding, font ≥ 18 px; `Caimán` renders with its diacritic | AC-08, PR-05 |
-| E2E-15 | Better | From the front of the current card, 10 alternating taps (waiting out each flip) | `__audioStarts` +1 per reveal (5 of 10 taps), none on back → front; back face shows the word; front shows the image | FR-13, FR-16, AC-12 |
+| E2E-15 | Better | From the front of the current card, 10 alternating taps (`tests/e2e/e2e-15-flip-repeat.spec.ts`), waiting out each flip and, after each reveal, its audio start (a flip back cancels a clip still being decoded, FR-13) | `__audioStarts` +1 per reveal (5 of 10 taps), none on back → front; back face shows the word; front shows the image; the card ends named "Card 1 of 5. Activate to reveal the word." | FR-13, FR-16, AC-12 |
 | SEC-01 | MVP | Launch with `cr_book=../x`, `cr_lang=%2e%2e`, each separately (`tests/e2e/sec-01-params.spec.ts`) | E1 shown; zero content requests issued (no `decks/`/`lang/`, `..` or `%2e` path) | FR-03, NFR-06, AC-02 |
 | PERF-01 | MVP | `bigdeck` (100 cards), CPU throttle 4× (CDP `Emulation.setCPUThrottlingRate`), offline (`tests/e2e/perf-01-bigdeck.spec.ts`) | ready UI < 10 s; no long task > 500 ms during boot (`__longTasks`, §3.3) | NFR-02, FR-10 |
 | PERF-02 | Better | `performance.now()` from `pointerdown`/`click` to the first style change that starts the flip, 20 samples on the reference device (and CI baseline) | median ≤ 100 ms | NFR-03, K-3 |
@@ -233,7 +233,7 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | FR-09 | UT-13, UT-14 |
 | FR-10 | UT-32, IT-01, IT-02, IT-04, E2E-01, CT-09, PERF-01 |
 | FR-11 | UT-15…20, CT-14 |
-| FR-12 | UT-21, UT-22, IT-05, E2E-06 |
+| FR-12 | UT-21, UT-22, CT-14, IT-05, E2E-06 |
 | FR-13 | UT-23, E2E-03, E2E-15 |
 | FR-14 | CT-01, CT-10, UT-26, UT-33, E2E-03, E2E-10, E2E-14 |
 | FR-15 | CT-02, E2E-03 |
@@ -307,6 +307,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Marked UT-19 and CT-02's inert-back case as deleted at Better, named the Module 5 (Better) test files and extended UT-18, UT-21, UT-22, CT-03, CT-14 (`onIndexChange`), IT-05 and E2E-15 with the cases written (independent additions beyond FR-12/FR-16 as first written: exact stored value and key, per-language keys, six corrupt-value shapes, inaccessible storage, `stop` after `play`, keyboard flip back, restored-card preload order, waiting for each reveal's audio), split IT-05 into a restore part and a Module 8 navigation part (DEVSPEC RD-23), traced FR-12 to CT-14, and now verify DEVSPEC v1.9.x.
 
 2026-11-10 — Copilot — Retargeted the `missing-image`, `missing-audio` and `long-word` variants to `alligator` and narrowed E2E-14 and E2E-02 to the cards the MVP can reach (DEVSPEC RD-22), added UT-33 (`cardSize`) to FR-14 and the MS1 gate, added the `image-placeholder` hook, the `__longTasks` observer and the `mergeVariant`/`recordPage` helpers to §3.3, named the Module 7 test files and extended UT-26, CT-01, CT-02, CT-10, IT-03, E2E-03, E2E-14, SEC-01 and PERF-01 with the cases written (independent additions beyond FR-14/FR-15 as first written), traced AC-05, AC-06, AC-08 and AC-09 to the new coverage, and now verify DEVSPEC v1.8.x and UISPEC v1.1.x.
 
