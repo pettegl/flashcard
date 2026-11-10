@@ -5,10 +5,10 @@ card shows a picture; tapping it flips the card to show the written word and pla
 audio. Built with React + TypeScript as a standalone web bundle that the Curious Reader container
 (an Android/iOS WebView) loads from `file://` with no network.
 
-**Status:** milestone MS1 (MVP: first card with tap-to-reveal and audio) is in progress. The app
+**Status:** milestone MS1 (MVP: first card with tap-to-reveal and audio) is complete. The app
 boots a deck offline and shows the first card's picture (or an error screen for unusable launch
-parameters or deck data); tap-to-reveal and audio are not built yet. Progress per milestone is
-tracked in
+parameters or deck data); tapping the card reveals the written word and plays its audio. Navigation
+between cards arrives with MS2 (Better). Progress per milestone is tracked in
 [DEVSPEC §III.5](docs/specs/DEVSPEC.md#iii5-deliverables-per-milestone-and-status).
 
 ## Getting started

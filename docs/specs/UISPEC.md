@@ -1,6 +1,6 @@
 # Flashcard — UI Specification (UISPEC)
 
-**Status:** Draft · **Version:** 1.0.0 · **Last updated:** 2026-11-05
+**Status:** Draft · **Version:** 1.1.0 · **Last updated:** 2026-11-10
 **References:** PRD v1.0.x (`PR-xx`); behavior is defined in the DEVSPEC (`FR-xx`) and **wins** on any conflict. This document defines every screen, state, visibility rule, interaction threshold, and acceptance criterion (Gherkin). Fixtures named in scenarios (`animals`, `english`, card ids) are defined in the TESTSPEC.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
@@ -90,7 +90,7 @@ Single source of truth for presentation values (other documents refer to the **n
 
 ## U.5 Card component
 
-A card is a bordered rectangle of `Wc × Hc` (see §U.7 for `Wc`, `Hc`), with a two-faced 3D structure: `.card` (perspective wrapper) > `.card-inner` (rotates) > `.face-front` + `.face-back`.
+A card is a bordered rectangle of `Wc × Hc` (see §U.7 for `Wc`, `Hc`), with a two-faced 3D structure: `.card` (perspective wrapper) > `.card-inner` (rotates) > `.face-front` + `.face-back`. Until the flip animation ships (DEVSPEC FR-21, Great) the flip is instant and `.card-inner` holds only the active face.
 
 ```
 ┌────────────────────────┐   border 4px #2B4C7E, radius 16, shadow
@@ -112,8 +112,8 @@ A card is a bordered rectangle of `Wc × Hc` (see §U.7 for `Wc`, `Hc`), with a 
 |---|---|
 | Front face | image only; `alt=""` (decorative; the card's accessible name carries the semantics, §U.10); `draggable=false` |
 | Back face | the `word` text only; **no image** |
-| Word fitting | start at `WORD_START_FRAC × Hc`; reduce by 2 px steps until the single-line width ≤ `WORD_FIT_FRAC × Wc` or `WORD_MIN_PX`; below that, allow wrapping (`overflow-wrap: anywhere`), vertically centered |
-| Image failure | front shows `--placeholder-bg` with a centered 48 px inline-SVG "picture" icon; card stays fully operable |
+| Word fitting | start at `max(WORD_MIN_PX, floor(WORD_START_FRAC × Hc))`; reduce by 2 px steps (the last step clamps to `WORD_MIN_PX`) until the single-line width, measured with canvas text metrics in the Bold word font, is ≤ `WORD_FIT_FRAC × Wc`, or `WORD_MIN_PX` is reached; below that, allow wrapping (`overflow-wrap: anywhere`) inside a box at most `WORD_FIT_FRAC × Wc` wide, vertically centered. Without canvas text metrics the start size is kept (one `[flashcard]` warning) and wrapping keeps the word inside the card |
+| Image failure | on the image `error` event the front shows `--placeholder-bg` with a centered 48 px inline-SVG "picture" icon (`aria-hidden`) until the card changes; card stays fully operable |
 | Peek (side) cards | front face only, regardless of previous flip history |
 | Interaction | tap/click/Enter/Space on the **current** card flips it (DEVSPEC FR-15/FR-16) |
 
@@ -185,9 +185,9 @@ Classification on `pointerup` (start `(x0,y0,t0)`, end `(x1,y1,t1)`; `dx = x1−
 
 | Element | Role / name | Notes |
 |---|---|---|
-| Current card | `role="button"`, `tabindex="0"`; name front: "Card {n} of {total}. Activate to reveal the word." · back: "{word}. Card {n} of {total}. Activate to flip back." | inactive face `aria-hidden="true"` |
+| Current card | `role="button"`, `tabindex="0"`; name front: "Card {n} of {total}. Activate to reveal the word." · back: "{word}. Card {n} of {total}. Activate to flip back." | inactive face `aria-hidden="true"` (not rendered at all until FR-21, §U.5); at MVP the back is inert (§U.11) but keeps this name (DEVSPEC RD-21) |
 | Peek cards | `role="button"`, `tabindex="0"`; "Previous card" / "Next card" | |
-| Live region | visually hidden `aria-live="polite"` announcing the `word` on each reveal | |
+| Live region | visually hidden `aria-live="polite"` announcing the `word` on each reveal | holds the word while the back shows; empty on the front |
 | Keyboard | `Enter`/`Space` flip the focused current card; `ArrowLeft`/`ArrowRight` previous/next (DEVSPEC FR-23); Better: arrow buttons are native `<button>`s | keys ignored while the input lock is active |
 | Focus | visible `--focus-ring` on every focusable element | |
 | Targets | every interactive element ≥ `MIN_TARGET_PX` in both dimensions (peek slivers are exempt from the width rule but the full card height remains hittable) | |
@@ -218,6 +218,8 @@ Classification on `pointerup` (start `(x0,y0,t0)`, end `(x1,y1,t1)`; `dx = x1−
 | Any idle | pointerdown + move > `TAP_MAX_MOVE_PX` | Dragging | group follows finger |
 | Dragging | release | per §U.8 | snap/slide |
 | Any | resize/orientation | same | layout recomputed, no animation |
+
+Before the flip animation (DEVSPEC FR-21, Great) the *Flipping* modifier never occurs: the face changes instantly.
 
 ---
 
@@ -487,5 +489,7 @@ Feature: Resume
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — From the Module 7 MVP card (DEVSPEC RD-21): the card holds only its active face and flips instantly until FR-21, word fitting gives its start-size formula, last-step clamp, canvas measurement and no-canvas fallback, the image placeholder appears on the `error` event, and §U.10 notes the inert MVP back and the live-region contents.
 
 2026-11-05 — Copilot — Initial draft of the UISPEC with screens, tokens, geometry, gestures, animations, accessibility, state machine, and Gherkin acceptance criteria AC-01…AC-36.

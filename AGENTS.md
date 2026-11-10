@@ -6,8 +6,8 @@ React single-page app built for Curious Learning's Curious Reader container — 
 Android/iOS WebView that loads the game from `file://` with no network. That
 constraint drives almost every rule below.
 
-The project is **spec-driven**. Module 0 (toolchain, standalone build, fixtures,
-audit) is in place; MS1 is in progress — check DEVSPEC §III.5 for current status. Start with
+The project is **spec-driven**. MS1 (MVP: first card, tap-to-reveal with audio) is
+complete; MS2 (Better) is next — check DEVSPEC §III.5 for current status. Start with
 [docs/specs/DEVSPEC.md](docs/specs/DEVSPEC.md); it is the map to everything else.
 Do not restate its content here.
 
