@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.4.0 · **Last updated:** 2026-11-10
+**Status:** Draft · **Version:** 1.5.0 · **Last updated:** 2026-11-10
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -154,9 +154,9 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-10 | MVP | Boot sequence: (1) parse params → E1; (2) in parallel `loadJson` deck + words (timeout `LOAD_GATE_MS`) → any failure E2; (3) `buildPlayableCards` → E2/E3; (4) restore progress (FR-12); (5) preload *critical* assets = fonts + images and audio of current card ±1, with `Promise.race` against `LOAD_GATE_MS`; (6) render ready UI; (7) continue preloading the rest in the background. The loading screen **never** depends on network and always clears within `LOAD_GATE_MS` of step 2 finishing. | PR-12, PR-16 |
+| FR-10 | MVP | `boot(search)` resolves to the ready deck `{params, cards, index, preloaded}` or an error code. Sequence: (1) parse params → E1, before any request; (2) in parallel `loadJson` deck + words (each with timeout `LOAD_GATE_MS`) → any load, timeout or JSON failure E2; (3) `validateDeck` + `validateWords` + `buildPlayableCards` → the thrown `DeckError.code` (E2/E3); (4) restore progress (FR-12) — until FR-12 ships the index is `0` (RD-11, RD-18); (5) preload *critical* assets = image and audio of the current card, then the fonts (`./fonts/NotoSans-{Regular,Bold}.woff2`, family `Noto Sans`, weights 400/700), then image and audio of current ±1, with `Promise.race` against `LOAD_GATE_MS`; (6) render ready UI; (7) once the critical batch settles, preload every other card nearest-first in the background. Every preload uses per-asset `timeoutMs: LOAD_GATE_MS`; results (including audio bytes for FR-13) are kept by URL in `preloaded`. Any other exception during boot shows **E9**. The loading screen **never** depends on network and always clears within `LOAD_GATE_MS` of step 2 finishing. | PR-12, PR-16 |
 
-**Exit:** IT-01, IT-02, IT-04 pass; E2E-01 shows loading screen cleared in < 10 s offline.
+**Exit:** UT-32, CT-09, IT-01, IT-02, IT-04 pass; E2E-01 shows loading screen cleared in < 10 s offline.
 
 ### Module 5 — Deck state and persistence
 
@@ -299,7 +299,7 @@ Service Workers/Workbox registration; `caches` on `file:`; `fetch` for local ass
 | `AudioContext` unavailable | Silent reveal |
 | `postMessage` throws / outside container | Swallowed; no-op |
 | Envelope > 64 KB | Dropped with warning |
-| Unhandled React error | Error boundary shows E2-style screen with code **E9**; telemetry untouched |
+| Unhandled React error, or an unexpected (non-`DeckError`) exception during boot | Error boundary (or boot) shows the error screen with code **E9**; telemetry untouched |
 
 ## II.5 Risks and mitigations
 
@@ -396,7 +396,7 @@ content/{decks/<deck>/**,lang/<lang>/**,icons/<deck>-<lang>.png}     production 
 | Pointer Events | One code path for touch and mouse |
 | ESLint 10 (flat config `eslint.config.mjs`) + `typescript-eslint` + `eslint-plugin-react-hooks` | Supported ESLint line (RD-13); also enforces the §II.3 / NFR-06 code rules at lint time |
 | Jest 29 + babel-jest + jsdom + React Testing Library | Unit/component/integration; Jest `roots` include `src/` so untested files count toward coverage (NFR-08) |
-| Playwright (full Chromium, new headless mode: `channel: 'chromium'`) | `file://` + offline + viewport + emulated touch e2e. `PW_CHANNEL=chrome` runs the installed Google Chrome where a machine policy blocks Playwright's own binaries |
+| Playwright (full Chromium, new headless mode: `channel: 'chromium'`) | `file://` + offline + viewport + emulated touch e2e. Launched with `--allow-file-access-from-files` so `file://` XHR works as in the container WebView (CR§1). `PW_CHANNEL=chrome` runs the installed Google Chrome where a machine policy blocks Playwright's own binaries |
 | `@axe-core/playwright` | Automated accessibility scan |
 | `archiver`, `yauzl` (or `unzipper`) | Cross-platform ZIP create/inspect; magic-byte checks done in Node (no `file` dependency on Windows) |
 
@@ -425,7 +425,7 @@ npm run verify:release
 
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
-| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Module 3 Done (tested) and Approved 2026-11-10; Modules 4, 6, 7 Not started) |
+| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4 Done (tested) and Approved 2026-11-10; Modules 6, 7 Not started) |
 | MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | Not started |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
@@ -503,6 +503,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | RD-15 | 2026-11-06 | The FR-01 lockfile check covers only runtime (non-`dev`) lockfile entries; `package.json` is checked in every dependency field. | Dev tooling never ships in the bundle, and tools such as `webpack-dev-server` may legitimately pull utility packages; what ships is guarded by the runtime tree, `dependencies` = `react`/`react-dom`, and the bundle-string audit. |
 | RD-16 | 2026-11-10 | Resolves OQ-12. A `card_order` with more than `MAX_CARDS` playable cards, or with ids missing from `cards`, is not a deck-level violation: at runtime the unknown ids are skipped and the first `MAX_CARDS` playable cards (counted after skipping and de-duplication) are kept, each with a warning (FR-09); `verify:release` fails on both (FR-28, NFR-04). §I.2.1 and UT-11 no longer list them. | Owner decision. Design principle II.1.3: an otherwise usable deck must not block a child; `MAX_CARDS` bounds memory and preloading, which truncation achieves. A runtime warning is invisible on a child's device, so the content team is stopped at release time instead. |
 | RD-17 | 2026-11-10 | Content paths (deck `image`, words `audio`) also reject `\`, `%`, `?`, `#`, tab/CR/LF and empty segments, and match extensions in any case. A words entry that breaks a card-level rule is dropped with a warning instead of failing the file; `DeckError` carries the screen code (`E2`/`E3`) and the full problem list. | Owner approval of Module 3. The URL parser maps `\` to `/`, decodes `%2e%2e` to `..` and strips tab/LF, so "no `..`" alone does not keep a path inside its folder; `.PNG` is a harmless content-team habit. Dropping one entry follows design principle II.1.3, and a code on the error lets boot (FR-10) pick the screen without re-classifying. |
+| RD-18 | 2026-11-10 | Boot (FR-10) starts on card 0 until FR-12 ships at Better; the critical batch puts the current card before the fonts and the neighbours; the background batch starts only after the critical batch settles and loads nearest-first; every preload has a per-asset `LOAD_GATE_MS` timeout; a non-`DeckError` exception during boot is E9. Until the MVP card (Module 7) ships, the ready UI is a stand-in showing the current card's front with the `card-current`/`face-front` hooks. | Owner approval of Module 4. FR-10 step (4) cited FR-12 inside MS1, which excludes FR-12 and shows only the first card (RD-11). With `PRELOAD_CONCURRENCY` 4 the current card's image and audio load first; starting the background batch after the critical one keeps ≤ 4 requests in flight, and the per-asset timeout frees the slot of a hung file so the rest still load. Classifying unknown exceptions as E9 keeps E2 meaning "bad data". |
 ## Appendix C — Out of Scope
 
 NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container changes, per-language font packs, analytics dashboards.
@@ -524,10 +525,16 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-10 | FR-08 said `validateWords` throws on any violation "likewise", but UT-12 drops a card for a card-level issue and only throws for file-level ones. | Integrated (FR-08, §I.2.2 file-/card-level note, RD-17) |
 | 2026-11-10 | "No scheme, no leading `/`, no `..`" does not keep a path in its folder: the URL parser turns `\` into `/`, `%2e%2e` into `..` and strips tab/LF. | Integrated (§I.2.1, §I.2.2, RD-17; TESTSPEC UT-11, UT-12) |
 | 2026-11-10 | Each fixture-reading test file regenerating `fixtures/` in `beforeAll` races across parallel Jest workers on a clean checkout (`make-fixtures` deletes the tree first). | Integrated (§III.1 `tests/globalSetup.cjs`; TESTSPEC §6) |
+| 2026-11-10 | Desktop Chromium blocks XHR from one `file://` URL to another ("Cross origin requests are only supported for…"), so boot showed E2 in Playwright although the container WebView applies no same-origin policy to local files (CR§1). | Integrated (§III.3 Playwright row, `playwright.config.ts` `--allow-file-access-from-files`; TESTSPEC §2) |
+| 2026-11-10 | Offline from `file://` the loading screen clears within a frame, so a polling `toBeVisible()` on `loading` races and BLD-02 became flaky once boot existed. Record the first appearance in-page with a `MutationObserver` init script instead. | Integrated (`tests/e2e/helpers.ts`; TESTSPEC §3.3, BLD-02, E2E-01) |
+| 2026-11-10 | jsdom never fires `load` on `Image` (no resource loading), so boot tests need a fake `Image`; a per-file `@jest-environment-options {"url": "file:///…"}` makes `IS_FILE_ORIGIN` true so `loadBinary` takes the XHR path; `ArrayBuffer`s read through `node:fs` fail `expect.any(ArrayBuffer)` (another realm), so assert on `byteLength`. | Integrated (`tests/integration/boot.test.tsx`) |
+| 2026-11-10 | FR-10 step (4) "restore progress (FR-12)" sat in an MS1 module although MS1 excludes FR-12 and the MVP shows only the first card (RD-11). | Integrated (FR-10, RD-18) |
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Recorded Module 4 as done and approved, detailed the FR-10 boot contract (result shape, error-code mapping incl. E9, card 0 until FR-12, critical-asset order, background batch after the critical one, per-asset timeouts) as RD-18, extended the §II.4 E9 row to unexpected boot failures, added the Chromium `--allow-file-access-from-files` launch flag to §III.3, and added four Lessons Log entries.
 
 2026-11-10 — Copilot — Recorded Module 3 as done and approved, split FR-08 into file-level (E2) and card-level (drop the card) violations, gave `DeckError` its `code`/`problems` contract and FR-09 an E3 `DeckError`, tightened content-path rules (RD-17), added `tests/globalSetup.cjs` to §III.1, and added three Lessons Log entries.
 

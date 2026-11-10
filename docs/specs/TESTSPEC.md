@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.4.0 · **Last updated:** 2026-11-10
-**Verifies:** DEVSPEC v1.4.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.5.0 · **Last updated:** 2026-11-10
+**Verifies:** DEVSPEC v1.5.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -23,7 +23,7 @@ Principles: every `FR`, `NFR` and `AC` has at least one test (§8 matrix); every
 
 ## 2. Environments
 
-- **Automated:** Node 20, Chromium via Playwright (`channel: 'chromium'`; set `PW_CHANNEL=chrome` to use the installed Google Chrome where a machine policy blocks Playwright's own binaries — DEVSPEC §III.3), `dist/merged` opened as `file:///…/dist/merged/index.html?cr_lang=<l>&cr_book=<d>&cr_user_id=test-user`, context `offline: true` unless stated.
+- **Automated:** Node 20, Chromium via Playwright (`channel: 'chromium'`; set `PW_CHANNEL=chrome` to use the installed Google Chrome where a machine policy blocks Playwright's own binaries — DEVSPEC §III.3) launched with `--allow-file-access-from-files` (the container applies no same-origin policy to local files, CR§1; without it desktop Chromium blocks `file://` XHR), `dist/merged` opened as `file:///…/dist/merged/index.html?cr_lang=<l>&cr_book=<d>&cr_user_id=test-user`, context `offline: true` unless stated.
 - **Reference device (PERF/MAN):** a mid/low-end Android phone on Android 8+ (model recorded in the release notes) running Curious Reader; one iOS device for MAN-02.
 - Default viewport: 360 × 640, touch emulation on (`hasTouch: true`).
 
@@ -63,7 +63,7 @@ Languages: `english` (Alligator, Bear, Cat, Dog, Elephant) and `spanish` (Caimá
 ### 3.3 Test hooks (testability contract; the app must provide)
 
 `data-testid`: `loading`, `error-code`, `card-current`, `face-front`, `face-back`, `card-peek-prev`, `card-peek-next`, `btn-prev`, `btn-next` (Better only), `live-region`.
-Playwright init scripts (no app hook needed): wrap `AudioBufferSourceNode.prototype.start` to count starts in `window.__audioStarts`; define `window.ReactNativeWebView = { postMessage: m => (window.__posted ||= []).push(m) }` for container simulation; `page.on('request')` records every request scheme.
+Playwright init scripts (no app hook needed): wrap `AudioBufferSourceNode.prototype.start` to count starts in `window.__audioStarts`; define `window.ReactNativeWebView = { postMessage: m => (window.__posted ||= []).push(m) }` for container simulation; `page.on('request')` records every request scheme; a `MutationObserver` records the first appearance of `loading` (its `role`, `aria-label` and text) in `window.__loadingSeen`, because offline S-1 can clear within a frame, faster than a polling assertion (`tests/e2e/helpers.ts`).
 
 ## 4. Test cases
 
@@ -104,6 +104,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-29 | Quality | `SessionTracker` with a fake clock/visibility | `session_started` once; `card_viewed` on navigation with `flips`, `audio_plays`, `duration_ms` (hidden time excluded); hidden flushes a segment, return starts a new segment; no double flush; `deck_completed` once after all 5 revealed; zero-duration/no-interaction segment skipped | FR-25 |
 | UT-30 | Quality | Summary documents | match DEVSPEC FR-26 table `data` and `options` exactly | FR-26 |
 | UT-31 | Quality | Guards: unknown `collection`; `options` with `user_sessions_data`; payload > 64 KB; `postMessage` throws; outside container; `NaN`/`undefined` in data | unknown collection and oversize dropped (warn); options never sent on sessions; throw swallowed; outside container no call; non-JSON-safe values sanitized/dropped | FR-24 |
+| UT-32 | MVP | Boot asset selection and exceptions (`tests/unit/boot.test.ts`): critical set for a middle index and for a one-card deck, with a neighbour that has no audio; background set; validation throwing a non-`DeckError` | critical = current image + audio, then both fonts, then previous and next (no entry past an end, no audio entry when `audioUrl` is null); background = every other card nearest-first, excluding the critical URLs; a non-`DeckError` rejects `boot` (the app shows E9) | FR-10 |
 
 ### 4.2 Component
 
@@ -117,7 +118,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | CT-06 | Great | Click right/left peek | `GO_TO(±1)`, no flip, `stop` called | FR-19, AC-18, AC-19 |
 | CT-07 | Great | Fake timers: tap during flip; any input during slide; swipe during flip | taps ignored for `FLIP_MS`; all input ignored for `SLIDE_MS`; leaving card reset to front immediately | FR-22, AC-27, AC-28, AC-29 |
 | CT-08 | Great | `matchMedia` reduced-motion = true | durations 0; no lock; rapid taps all honoured | FR-22, AC-30 |
-| CT-09 | MVP | Loading and Error screens | `loading` has `role="status"` and no text; error screens show codes E1/E2/E3/E9 with `role="alert"` | FR-10, AC-01…04 |
+| CT-09 | MVP | Loading and Error screens (`tests/component/LoadingScreen.test.tsx`, `tests/component/ErrorScreen.test.tsx`): each screen; `App` while boot is pending and when boot rejects; `ErrorBoundary` around a child that throws on render | `loading` has `role="status"`, name "Loading" and no text; error screens show codes E1/E2/E3/E9 with `role="alert"`, name "Content unavailable, code E#", a decorative (`aria-hidden`) icon and no buttons; pending boot → `loading`; boot rejection and render crash → E9 with a `[flashcard]` warning | FR-10, AC-01…04, DEVSPEC §II.4 |
 | CT-10 | MVP | Image `error` event | placeholder shown; card still flips | FR-14, AC-09 |
 | CT-11 | Quality | Accessibility semantics | names exactly per UISPEC §U.10 (e.g. "Card 1 of 5. Activate to reveal the word."); inactive face `aria-hidden`; live region announces the word; Enter/Space flip; ArrowLeft/Right navigate; keys ignored during lock; all app strings come from `strings.ts` | FR-23, AC-33, AC-34, NFR-11 |
 | CT-12 | MVP | Render `html-word` variant on reveal | literal text shown; no element/script created | NFR-06 |
@@ -127,10 +128,10 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 
 | ID | Tier | Title / steps | Expected | Verifies |
 |---|---|---|---|---|
-| IT-01 | MVP | Boot `animals`/`english` | loading → ready; 5 cards; first card front | FR-10 |
-| IT-02 | MVP | Boot with `missing-words`, `corrupt-json`, `bad-schema`; boot with `no-playable`; bad params | `E2`, `E2`, `E2`; `E3`; `E1` (no XHR issued for bad params) | FR-10, AC-02…04 |
+| IT-01 | MVP | Boot `animals`/`english` (IT-01, IT-02, IT-04 in `tests/integration/boot.test.tsx`, jsdom on a `file:` URL with fake `XMLHttpRequest`, `Image` and `FontFace` serving the fixtures) | loading → ready; 5 cards in `card_order`; first card front (`card-current` = `alligator`, no `face-back`); the critical set (current ±1 and both fonts) is settled before ready and the other cards' images and audio follow in the background, nearest first; no `console.warn`/`console.error` | FR-10 |
+| IT-02 | MVP | Boot with `missing-words`, `corrupt-json`, `bad-schema`; boot with `no-playable`; bad params (missing `cr_lang`, missing `cr_book`, `..%2Fx`, upper case, empty query) | `E2`, `E2`, `E2`; `E3`; `E1` (no XHR and no image request issued for bad params; no image request for E2/E3); a `[flashcard] E#:` warning for E2/E3; `console.error` never called | FR-10, AC-02…04 |
 | IT-03 | MVP | Boot with `missing-image`, `missing-audio`, `missing-word-one` | ready screen; card with missing image shows placeholder; missing audio silent on reveal; missing-word card skipped; `console.error` never called | FR-06, NFR-05, AC-09, AC-10 |
-| IT-04 | MVP | Image XHR/`Image` never completes (hang) | ready UI renders by `LOAD_GATE_MS` (fake timers) and the loading screen is gone | FR-10 |
+| IT-04 | MVP | Every image (`Image`), audio and font request never completes (hang), with fake timers; separately the deck file XHR hangs | still loading at `LOAD_GATE_MS − 1`; at `LOAD_GATE_MS` the ready UI renders, the loading screen is gone and a gate warning is logged; before the gate only the first `PRELOAD_CONCURRENCY` critical assets are in flight (the background batch waits for the critical one); after the hung assets time out every card image is still requested; a hanging deck file shows E2 at `LOAD_GATE_MS` | FR-10 |
 | IT-05 | Better | Navigate to card 4, remount app | restored on card 4 front; with unknown stored id → card 0 | FR-12, AC-36 |
 
 ### 4.4 Build and packaging
@@ -138,7 +139,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | ID | Tier | Title / steps | Expected | Verifies |
 |---|---|---|---|---|
 | BLD-01 | MVP | `npm run build`; inspect `dist/standalone` (automated by `npm run audit:standalone`; audit rules unit-tested in `tests/unit/audit-standalone.test.ts`) | `index.html`; no `.map`; bundle and CSS use `./` paths; no inline `<script>`/`style=""`; CSS in a file; no `eval`; browserslist as configured | FR-01, NFR-07 |
-| BLD-02 | MVP | `npm run build:merged`; open `dist/merged/index.html?…` from `file://` offline (`tests/e2e/bld-02-smoke.spec.ts`) | `dist/merged` = engine + fixture deck + fixture langs with no overwritten path; page loads (smoke): `loading` visible, extracted CSS applied, every request scheme ∈ {`file`, `data`, `blob`}, zero `console.error`/page errors | FR-02 |
+| BLD-02 | MVP | `npm run build:merged`; open `dist/merged/index.html?…` from `file://` offline (`tests/e2e/bld-02-smoke.spec.ts`) | `dist/merged` = engine + fixture deck + fixture langs with no overwritten path; page loads (smoke): `loading` rendered (recorded by the §3.3 init script), extracted CSS applied, every request scheme ∈ {`file`, `data`, `blob`}, zero `console.error`/page errors | FR-02 |
 | BLD-03 | MVP | `npm run fixtures`; check the fixture contract (`tests/unit/fixtures.test.ts`) | §3.1 deck, both languages, WAV headers and 512×512 icon present; every image a true PNG of the listed size with the 8 px red frame; no `http(s)://` in JSON; all twelve §3.2 variants present, each overriding exactly its one thing | FR-02, §3 |
 | PKG-01 | Release | Names produced by `package` for deck `animals`, langs `english`,`spanish` | `flashcard-core.zip`, `flashcard-book-animals.zip`, `flashcard-book-animals-lang-english.zip`, `…-lang-spanish.zip` | FR-27 |
 | PKG-02 | Release | Engine ZIP | `index.html` at root, no wrapping folder, no `lang/`, no `decks/` | FR-27, FR-28 |
@@ -158,7 +159,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 
 | ID | Tier | Title / steps | Expected | Verifies |
 |---|---|---|---|---|
-| E2E-01 | MVP | Open `animals`/`english` offline | `loading` visible then gone; `card-current` visible in < 10 s | FR-10, AC-01, NFR-02, K-1 |
+| E2E-01 | MVP | Open `animals`/`english` offline (`tests/e2e/e2e-01-boot.spec.ts`); then open without `cr_lang` | `loading` rendered (§3.3 init script, `role="status"`, name "Loading", no text) then gone; `card-current` (`alligator`, image decoded at 800 px natural width) visible in < 10 s; every request scheme ∈ {`file`, `data`, `blob`}; zero `console.error`/page errors. Without `cr_lang`: E1 alert and no `decks/`/`lang/` request | FR-10, AC-01, AC-02, NFR-02, K-1 |
 | E2E-02 | MVP | Record requests and console during load + a full pass through all cards | every request scheme ∈ {`file`, `data`, `blob`}; zero `console.error`; no uncaught exceptions | NFR-01, NFR-10, K-2 |
 | E2E-03 | MVP | Tap current card; then 10 alternating taps (waiting out each flip) | `__audioStarts` +1 per reveal (5 of 10 taps); back face shows the word; front shows image | FR-13, FR-15, AC-07, AC-12 |
 | E2E-04 | Great | Touch gestures at slow/fast/short/vertical/12 px-move variants and swipe past each end | outcomes exactly as AC-20…AC-25 (current card id after each); rubber-band displacement ≈ 30% (±5%) | FR-20, AC-20…25 |
@@ -192,7 +193,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | Gate | Entry | Exit |
 |---|---|---|
 | Module done | DEVSPEC module implemented | its listed tests pass; coverage thresholds (NFR-08) not regressed |
-| MS1 MVP | Modules 0–4, 6, 7 | UT-01…17, 19, 20, 23, 26; CT-01, 02, 09, 10, 12; IT-01…04; BLD-01…03; PKG-09; E2E-01…03, 14; SEC-01; PERF-01 pass |
+| MS1 MVP | Modules 0–4, 6, 7 | UT-01…17, 19, 20, 23, 26, 32; CT-01, 02, 09, 10, 12; IT-01…04; BLD-01…03; PKG-09; E2E-01…03, 14; SEC-01; PERF-01 pass |
 | MS2 Better | MS1 + FR-12, FR-16, FR-17 | + UT-18, 21, 22; CT-03, 04; IT-05; E2E-06; PERF-02; UT-19 **deleted** |
 | MS3 Great | MS2 + Modules 9–10 | + UT-24, 25; CT-05…08, 11, 13; E2E-04, 05, 09…13; CT-04 **deleted** |
 | MS4 Telemetry | MS3 + Module 11 | UT-27…31; E2E-07, 08 |
@@ -227,7 +228,7 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | FR-07 | UT-10, UT-11 |
 | FR-08 | UT-12 |
 | FR-09 | UT-13, UT-14 |
-| FR-10 | IT-01, IT-02, IT-04, E2E-01, CT-09, PERF-01 |
+| FR-10 | UT-32, IT-01, IT-02, IT-04, E2E-01, CT-09, PERF-01 |
 | FR-11 | UT-15…20 |
 | FR-12 | UT-21, UT-22, IT-05, E2E-06 |
 | FR-13 | UT-23, E2E-03 |
@@ -262,7 +263,7 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | Acceptance criterion | Covered by |
 |---|---|
 | AC-01 | E2E-01, CT-09 |
-| AC-02 | IT-02, SEC-01, CT-09 |
+| AC-02 | IT-02, SEC-01, CT-09, E2E-01 |
 | AC-03 | IT-02 |
 | AC-04 | IT-02, UT-14 |
 | AC-05 | CT-01 |
@@ -303,6 +304,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Named the Module 4 test files, added UT-32 (boot asset selection and E9 on unexpected exceptions) and extended CT-09, IT-01, IT-02, IT-04 and E2E-01 with the critical/background preload order, bad-param list, gate timing, hanging deck file, E9 and accessible-name cases (independent additions beyond FR-10 as first written), documented the `--allow-file-access-from-files` launch flag and the in-page loading-screen hook used by BLD-02/E2E-01, and now verify DEVSPEC v1.5.x.
 
 2026-11-10 — Copilot — Named the Module 3 test files, extended UT-10…UT-14 with the path-hardening, file-/card-level, verbatim-word, duplicate, `audioUrl: null`, `DeckError` code and de-duplicated-limit cases (independent additions beyond FR-07…FR-09 as first written), documented the Jest fixture `globalSetup`, and now verify DEVSPEC v1.4.x.
 
