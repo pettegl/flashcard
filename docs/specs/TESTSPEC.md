@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.5.0 · **Last updated:** 2026-11-10
-**Verifies:** DEVSPEC v1.5.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.6.0 · **Last updated:** 2026-11-10
+**Verifies:** DEVSPEC v1.6.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -87,12 +87,12 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-12 | MVP | `validateWords` (`tests/unit/validateWords.test.ts`) — valid: `english`/`spanish` fixtures, absent/`null` audio, padded/HTML-like word kept verbatim, 64 code points (emoji), `.MP3`. File-level: bad `schema_version`, `deck_id`/`lang` mismatch, `cards` not an array, file not an object. Card-level: empty/blank/65-char/non-string `target_word`, audio of another lang or not under `lang/<lang>/audios/`, audio is a URL/absolute/contains `..`, bad extension, missing `card_id`, entry not an object; duplicate `card_id` | valid files pass unchanged; file-level → `DeckError` `E2` listing every problem; card-level → that card dropped with one `[flashcard]` warning naming all its problems, others kept; duplicate → first valid entry kept (FR-08, RD-17) | FR-08 |
 | UT-13 | MVP | `buildPlayableCards` (UT-13, UT-14 in `tests/unit/buildPlayableCards.test.ts`) with primary, `spanish`, `dup-order` and `missing-word-one` data; a card without audio; a deck card absent from `card_order` | order respected; duplicate dropped; unknown/missing-word ids skipped with `console.warn`; urls built as `./decks/animals/…`, `./lang/english/…`; no audio → `audioUrl: null`; card absent from the order not shown | FR-09 |
 | UT-14 | MVP | No playable cards (`no-playable`, empty order, empty words); 120-card input; exactly 100; 105 order ids of which 5 are unknown; 101 order ids with one duplicate | `DeckError` with `code` `E3`; 120 → 100 cards with one warning; 100 → no warning; 105 → 100 cards (limit counted after skipping, no truncation warning); 101 → 100 cards, duplicate warning only | FR-09 |
-| UT-15 | MVP | Reducer initial state | `index`, `face:'front'` as supplied | FR-11 |
-| UT-16 | MVP | `NEXT`/`PREV` at bounds | no-op (no wrap) | FR-11 |
-| UT-17 | MVP | `GO_TO` valid, current, negative, ≥ n, non-integer | valid moves; others no-op | FR-11 |
+| UT-15 | MVP | Reducer initial state (UT-15…UT-20 in `tests/unit/deckReducer.test.ts`) | `index`, `face:'front'` as supplied | FR-11 |
+| UT-16 | MVP | `NEXT`/`PREV` at bounds; walk past both ends; one-card deck | no-op (no wrap), same state object, face kept | FR-11 |
+| UT-17 | MVP | `GO_TO` valid, current, negative, = n, > n, non-integer, `NaN`, `±Infinity` | valid moves; others no-op (same state object) | FR-11 |
 | UT-18 | Better | `FLIP` twice | `front→back→front` | FR-11, FR-16 |
-| UT-19 | MVP *(retired at Better)* | `FLIP` on back | stays `back` | FR-11 |
-| UT-20 | MVP | Any index change while `face:'back'` | new `face:'front'` | FR-11 |
+| UT-19 | MVP *(retired at Better)* | `FLIP` on back | stays `back` (same state object) | FR-11 |
+| UT-20 | MVP | Any index change while `face:'back'` | new `face:'front'`; the previous state is not mutated | FR-11 |
 | UT-21 | Better | Save then restore progress | restores the saved `card_id` index, face `front` | FR-12 |
 | UT-22 | Better | Stored id unknown; corrupt JSON; `localStorage` throws on get/set | index 0; no exception | FR-12 |
 | UT-23 | MVP | `AudioPlayer` with a mocked `AudioContext` | context created lazily on first `play`; suspended → `resume()`; second `play` stops the first source; `stop()` stops; missing buffer or no context → no throw, no start; decode failure → 1-frame silent buffer substituted | FR-13 |
@@ -123,6 +123,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | CT-11 | Quality | Accessibility semantics | names exactly per UISPEC §U.10 (e.g. "Card 1 of 5. Activate to reveal the word."); inactive face `aria-hidden`; live region announces the word; Enter/Space flip; ArrowLeft/Right navigate; keys ignored during lock; all app strings come from `strings.ts` | FR-23, AC-33, AC-34, NFR-11 |
 | CT-12 | MVP | Render `html-word` variant on reveal | literal text shown; no element/script created | NFR-06 |
 | CT-13 | Great | Render Great layout | no element with name "Previous card"/"Next card" buttons from `NavArrows` | FR-17, AC-17 |
+| CT-14 | MVP | `DeckProvider`/`useDeck` (`tests/component/DeckContext.test.tsx`): seed `{cards, index: 1}`, dispatch `FLIP` then `NEXT`; render children; `useDeck` outside a provider | state seeded on the front face; `FLIP` → back, `NEXT` → index 2 front (actions go through the FR-11 reducer); children rendered; outside a provider throws a `[flashcard]` error | FR-11 |
 
 ### 4.3 Integration (mock XHR over fixtures)
 
@@ -193,7 +194,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | Gate | Entry | Exit |
 |---|---|---|
 | Module done | DEVSPEC module implemented | its listed tests pass; coverage thresholds (NFR-08) not regressed |
-| MS1 MVP | Modules 0–4, 6, 7 | UT-01…17, 19, 20, 23, 26, 32; CT-01, 02, 09, 10, 12; IT-01…04; BLD-01…03; PKG-09; E2E-01…03, 14; SEC-01; PERF-01 pass |
+| MS1 MVP | Modules 0–4, 5 (FR-11), 6, 7 | UT-01…17, 19, 20, 23, 26, 32; CT-01, 02, 09, 10, 12, 14; IT-01…04; BLD-01…03; PKG-09; E2E-01…03, 14; SEC-01; PERF-01 pass |
 | MS2 Better | MS1 + FR-12, FR-16, FR-17 | + UT-18, 21, 22; CT-03, 04; IT-05; E2E-06; PERF-02; UT-19 **deleted** |
 | MS3 Great | MS2 + Modules 9–10 | + UT-24, 25; CT-05…08, 11, 13; E2E-04, 05, 09…13; CT-04 **deleted** |
 | MS4 Telemetry | MS3 + Module 11 | UT-27…31; E2E-07, 08 |
@@ -229,7 +230,7 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | FR-08 | UT-12 |
 | FR-09 | UT-13, UT-14 |
 | FR-10 | UT-32, IT-01, IT-02, IT-04, E2E-01, CT-09, PERF-01 |
-| FR-11 | UT-15…20 |
+| FR-11 | UT-15…20, CT-14 |
 | FR-12 | UT-21, UT-22, IT-05, E2E-06 |
 | FR-13 | UT-23, E2E-03 |
 | FR-14 | CT-01, CT-10, UT-26, E2E-10, E2E-14 |
@@ -304,6 +305,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Named the Module 5 test files, added CT-14 (`DeckProvider`/`useDeck`) to FR-11 and the MS1 gate, extended UT-16, UT-17, UT-19 and UT-20 with the one-card deck, `NaN`/`±Infinity`, same-state-object and no-mutation cases (independent additions beyond FR-11 as first written), added Module 5 (FR-11) to the MS1 entry, and now verify DEVSPEC v1.6.x.
 
 2026-11-10 — Copilot — Named the Module 4 test files, added UT-32 (boot asset selection and E9 on unexpected exceptions) and extended CT-09, IT-01, IT-02, IT-04 and E2E-01 with the critical/background preload order, bad-param list, gate timing, hanging deck file, E9 and accessible-name cases (independent additions beyond FR-10 as first written), documented the `--allow-file-access-from-files` launch flag and the in-page loading-screen hook used by BLD-02/E2E-01, and now verify DEVSPEC v1.5.x.
 

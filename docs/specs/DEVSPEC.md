@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.5.0 · **Last updated:** 2026-11-10
+**Status:** Draft · **Version:** 1.6.0 · **Last updated:** 2026-11-10
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -162,10 +162,10 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-11 | MVP | Pure reducer `{cards, index, face: 'front'\|'back'}`. Actions: `FLIP`, `NEXT`, `PREV`, `GO_TO(i)`. Rules: navigation actions that leave bounds `[0, n-1]` are no-ops (no wrap — pending OQ-5); **any change of `index` sets `face` to `'front'`** (RD-9); `GO_TO(current)` is a no-op. `FLIP` — **MVP:** `front→back` only; **Better+:** toggles (FR-16). | PR-02, PR-06, PR-07 |
+| FR-11 | MVP | Pure reducer `{cards, index, face: 'front'\|'back'}`. Actions: `FLIP`, `NEXT`, `PREV`, `GO_TO(i)`. Rules: navigation actions that leave bounds `[0, n-1]` are no-ops (no wrap — pending OQ-5); **any change of `index` sets `face` to `'front'`** (RD-9); `GO_TO(current)` is a no-op, and so is `GO_TO` with a non-integer index (including `NaN`/`±Infinity`); a no-op returns the unchanged state object. `FLIP` — **MVP:** `front→back` only; **Better+:** toggles (FR-16). The reducer has no side effects. `DeckProvider`/`useDeck` (`src/state/DeckContext.tsx`) hold this state for the ready UI, seeded once from the boot result's `{cards, index}` on the front face (RD-19). | PR-02, PR-06, PR-07 |
 | FR-12 | Quality | After each `index` change write `{card_id}` to `localStorage[STORAGE_KEY_PREFIX:<lang>:<deck>]` in try/catch. At boot, restore if the stored `card_id` exists in the playable list; otherwise index `0`. Corrupt JSON or throwing storage → index `0`, no error. Face always starts `front`. | PR-14 |
 
-**Exit:** UT-15…UT-22 pass.
+**Exit (MVP, FR-11):** UT-15…UT-17, UT-19, UT-20 and CT-14 pass. **Exit (Better, FR-12 with FR-16):** UT-18, UT-21, UT-22 and IT-05 pass; UT-19 is deleted (RD-19).
 
 ### Module 6 — Audio
 
@@ -425,7 +425,7 @@ npm run verify:release
 
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
-| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4 Done (tested) and Approved 2026-11-10; Modules 6, 7 Not started) |
+| MS1 | MVP | 0–4, 5 (FR-11), 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4 and Module 5 (FR-11) Done (tested) and Approved 2026-11-10; Modules 6, 7 Not started) |
 | MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | Not started |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
@@ -504,6 +504,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | RD-16 | 2026-11-10 | Resolves OQ-12. A `card_order` with more than `MAX_CARDS` playable cards, or with ids missing from `cards`, is not a deck-level violation: at runtime the unknown ids are skipped and the first `MAX_CARDS` playable cards (counted after skipping and de-duplication) are kept, each with a warning (FR-09); `verify:release` fails on both (FR-28, NFR-04). §I.2.1 and UT-11 no longer list them. | Owner decision. Design principle II.1.3: an otherwise usable deck must not block a child; `MAX_CARDS` bounds memory and preloading, which truncation achieves. A runtime warning is invisible on a child's device, so the content team is stopped at release time instead. |
 | RD-17 | 2026-11-10 | Content paths (deck `image`, words `audio`) also reject `\`, `%`, `?`, `#`, tab/CR/LF and empty segments, and match extensions in any case. A words entry that breaks a card-level rule is dropped with a warning instead of failing the file; `DeckError` carries the screen code (`E2`/`E3`) and the full problem list. | Owner approval of Module 3. The URL parser maps `\` to `/`, decodes `%2e%2e` to `..` and strips tab/LF, so "no `..`" alone does not keep a path inside its folder; `.PNG` is a harmless content-team habit. Dropping one entry follows design principle II.1.3, and a code on the error lets boot (FR-10) pick the screen without re-classifying. |
 | RD-18 | 2026-11-10 | Boot (FR-10) starts on card 0 until FR-12 ships at Better; the critical batch puts the current card before the fonts and the neighbours; the background batch starts only after the critical batch settles and loads nearest-first; every preload has a per-asset `LOAD_GATE_MS` timeout; a non-`DeckError` exception during boot is E9. Until the MVP card (Module 7) ships, the ready UI is a stand-in showing the current card's front with the `card-current`/`face-front` hooks. | Owner approval of Module 4. FR-10 step (4) cited FR-12 inside MS1, which excludes FR-12 and shows only the first card (RD-11). With `PRELOAD_CONCURRENCY` 4 the current card's image and audio load first; starting the background batch after the critical one keeps ≤ 4 requests in flight, and the per-asset timeout frees the slot of a hung file so the rest still load. Classifying unknown exceptions as E9 keeps E2 meaning "bad data". |
+| RD-19 | 2026-11-10 | Module 5 is split by tier: FR-11 ships in MS1 with the MVP one-way `FLIP` (UT-19); FR-12 and the toggling `FLIP` (UT-18, FR-16) ship together at Better, when UT-19 is deleted. The deck state lives in `DeckProvider`/`useDeck`, seeded once from the boot result; a no-op action returns the unchanged state object, so React skips the re-render. | Owner decision at Module 5. The Module 5 exit listed UT-15…UT-22, which mixes tiers and requires the contradictory UT-18 and UT-19; MS1 lists FR-11 but excluded Module 5, and MS2 owns FR-12 (RD-11, RD-18). |
 ## Appendix C — Out of Scope
 
 NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container changes, per-language font packs, analytics dashboards.
@@ -529,10 +530,13 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-10 | Offline from `file://` the loading screen clears within a frame, so a polling `toBeVisible()` on `loading` races and BLD-02 became flaky once boot existed. Record the first appearance in-page with a `MutationObserver` init script instead. | Integrated (`tests/e2e/helpers.ts`; TESTSPEC §3.3, BLD-02, E2E-01) |
 | 2026-11-10 | jsdom never fires `load` on `Image` (no resource loading), so boot tests need a fake `Image`; a per-file `@jest-environment-options {"url": "file:///…"}` makes `IS_FILE_ORIGIN` true so `loadBinary` takes the XHR path; `ArrayBuffer`s read through `node:fs` fail `expect.any(ArrayBuffer)` (another realm), so assert on `byteLength`. | Integrated (`tests/integration/boot.test.tsx`) |
 | 2026-11-10 | FR-10 step (4) "restore progress (FR-12)" sat in an MS1 module although MS1 excludes FR-12 and the MVP shows only the first card (RD-11). | Integrated (FR-10, RD-18) |
+| 2026-11-10 | The Module 5 exit "UT-15…UT-22" required both UT-18 (Better: `FLIP` toggles) and UT-19 (MVP: `FLIP` on back stays back), which no single reducer passes; MS1 listed FR-11 but not Module 5. Exits that span tiers must be split per tier, as Module 7 already does. | Integrated (Module 5 exit, §III.5 MS1, RD-19; TESTSPEC §5) |
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Recorded Module 5 (FR-11, MVP) as done and approved, split the Module 5 exit into MVP and Better parts and added Module 5 (FR-11) to MS1 (RD-19), clarified FR-11 no-ops (non-integer `GO_TO`, unchanged state object) and the `DeckProvider`/`useDeck` holder, and added a Lessons Log entry.
 
 2026-11-10 — Copilot — Recorded Module 4 as done and approved, detailed the FR-10 boot contract (result shape, error-code mapping incl. E9, card 0 until FR-12, critical-asset order, background batch after the critical one, per-asset timeouts) as RD-18, extended the §II.4 E9 row to unexpected boot failures, added the Chromium `--allow-file-access-from-files` launch flag to §III.3, and added four Lessons Log entries.
 

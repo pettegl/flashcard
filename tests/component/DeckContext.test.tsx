@@ -12,8 +12,8 @@ const CARDS: PlayableCard[] = ['alligator', 'bear', 'cat'].map((id, index) => ({
   audioUrl: null,
 }));
 
-// FR-11: React glue for the deck reducer (no TESTSPEC ID of its own; covered with UT-15…20).
-describe('DeckProvider / useDeck', () => {
+// CT-14 / FR-11: React glue for the deck reducer.
+describe('CT-14 DeckProvider / useDeck', () => {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <DeckProvider cards={CARDS} index={1}>
       {children}
