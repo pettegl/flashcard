@@ -56,7 +56,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['scripts/**/*.mjs', '*.cjs', '*.mjs', 'playwright.config.ts'],
+    files: ['scripts/**/*.mjs', '*.cjs', '*.mjs', 'tests/*.cjs', 'playwright.config.ts'],
     languageOptions: { globals: globals.node },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },

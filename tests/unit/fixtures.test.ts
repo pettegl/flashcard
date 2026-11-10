@@ -1,7 +1,6 @@
 /**
  * @jest-environment node
  */
-import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { inflateSync } from 'node:zlib';
@@ -21,13 +20,6 @@ const SHAPES: Record<string, [number, number]> = {
   dog: [200, 200],
   elephant: [1600, 1200],
 };
-
-beforeAll(() => {
-  if (!existsSync(join(CONTENT, 'decks'))) {
-    const result = spawnSync(process.execPath, [join(ROOT, 'scripts/make-fixtures.mjs')], { encoding: 'utf8' });
-    if (result.status !== 0) throw new Error(result.stderr);
-  }
-});
 
 const readJson = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
 

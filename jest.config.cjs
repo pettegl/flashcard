@@ -16,6 +16,7 @@ module.exports = {
   testEnvironment: 'jsdom',
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/tests/{unit,component,integration}/**/*.test.{ts,tsx}'],
+  globalSetup: '<rootDir>/tests/globalSetup.cjs',
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/index.tsx'],
   coverageDirectory: 'coverage',
   // NFR-08: ≥ 80% lines overall.
