@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.3.0 · **Last updated:** 2026-11-10
+**Status:** Draft · **Version:** 1.4.0 · **Last updated:** 2026-11-10
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -51,7 +51,7 @@ Flashcard is a single-page **TypeScript + React** web game, built into a *standa
 | `schema_version` | integer, must equal `1` |
 | `deck_id` | must equal the `cr_book` launch value |
 | `cards[].card_id` | unique; regex `^[a-z0-9]+(-[a-z0-9]+)*$`; ≤ 64 chars (no underscore — `_` is the audio-filename delimiter) |
-| `cards[].image` | relative path inside `decks/<deck>/`; no scheme, no leading `/`, no `..`; extension `png\|jpg\|jpeg\|webp\|svg` |
+| `cards[].image` | relative path inside `decks/<deck>/`; no scheme, no leading `/`, no `..`, no `\`, `%`, `?`, `#`, tab/CR/LF or empty segment (RD-17); extension `png\|jpg\|jpeg\|webp\|svg`, any case |
 | `card_order` | array of `card_id`; defines display order. Ids missing from `cards`, later duplicates and playable cards beyond `MAX_CARDS` are not schema violations: they are skipped or truncated at runtime (FR-09) and fail `verify:release` (FR-28) — RD-16 |
 
 Brief mapping: `cards` ≙ the brief's "card definitions" (minus `target_word`, which is language-specific and moved to the lang tier — RD-8); `card_order` ≙ the brief's `card_order` array.
@@ -73,9 +73,12 @@ Brief mapping: `cards` ≙ the brief's "card definitions" (minus `target_word`, 
 | Field | Rule |
 |---|---|
 | `schema_version`, `deck_id`, `lang` | `1`; equals `cr_book`; equals `cr_lang` |
-| `cards[].card_id` | must match a deck card to be playable |
-| `cards[].target_word` | non-empty after trim; ≤ 64 chars; displayed verbatim as **text** (never HTML), case preserved |
-| `cards[].audio` | optional; relative path starting `lang/<lang>/audios/`; extension `mp3\|wav`; **no URLs** (CR§2.1, CR§4) |
+| `cards` | array |
+| `cards[].card_id` | non-empty string; must match a deck card to be playable; a later duplicate of a valid entry is dropped |
+| `cards[].target_word` | non-empty after trim; ≤ 64 characters (Unicode code points); displayed verbatim as **text** (never HTML, never trimmed), case preserved |
+| `cards[].audio` | optional (absent or `null` = silent reveal); relative path starting `lang/<lang>/audios/`, with the same path rules as `cards[].image`; extension `mp3\|wav`, any case; **no URLs** (CR§2.1, CR§4) |
+
+The first two rows are file-level: a violation makes the file unusable (E2). The `cards[]` rows are card-level: a violating entry is dropped with a warning and the rest of the file is used (FR-08, RD-17).
 
 ### I.2.3 Derived runtime type
 
@@ -141,9 +144,9 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-07 | MVP | `validateDeck(json, deck)` enforces §I.2.1. Any violation → throws `DeckError` listing every problem. | PR-04 |
-| FR-08 | MVP | `validateWords(json, deck, lang)` enforces §I.2.2 likewise. | PR-04, PR-05 |
-| FR-09 | MVP | `buildPlayableCards(deck, words)`: iterate `card_order`; skip (with `console.warn('[flashcard] …')`) ids missing from `cards` or from `words`; drop later duplicates in `card_order`; result length ≤ `MAX_CARDS`, counted after skipping and de-duplication: the first `MAX_CARDS` playable cards are kept and the excess truncated with a warning (RD-16). Empty result → error **E3**. A deck-level schema violation → **E2**. Per-card problems (missing word/audio/image) are never fatal. | PR-04, PR-16 |
+| FR-07 | MVP | `validateDeck(json, deck)` enforces §I.2.1 and returns the typed deck (known fields only). Any violation → throws one `DeckError` with `code: 'E2'` and `problems` listing every violation. | PR-04 |
+| FR-08 | MVP | `validateWords(json, deck, lang)` enforces §I.2.2 and returns the typed words file holding only the valid cards. A file-level violation → throws `DeckError` (`E2`) listing every file-level problem. A card-level violation drops only that card, with one `console.warn('[flashcard] …')` naming all of its problems; for a duplicate `card_id` the first valid entry is kept. | PR-04, PR-05 |
+| FR-09 | MVP | `buildPlayableCards(deck, words)`: iterate `card_order`; skip (with `console.warn('[flashcard] …')`) ids missing from `cards` or from `words`; drop later duplicates in `card_order`; result length ≤ `MAX_CARDS`, counted after skipping and de-duplication: the first `MAX_CARDS` playable cards are kept and the excess truncated with a warning (RD-16). Deck cards absent from `card_order` are not shown. Empty result → throws `DeckError` with `code: 'E3'`. A deck-level schema violation → **E2** (FR-07, FR-08). Per-card problems (missing word/audio/image) are never fatal. `DeckError.code` is the error screen code. | PR-04, PR-16 |
 
 **Exit:** UT-10…UT-14 pass, covering every rule in the tables above.
 
@@ -288,6 +291,7 @@ Service Workers/Workbox registration; `caches` on `file:`; `fetch` for local ass
 | Deck/words file missing, unreadable, invalid JSON, schema violation, load timeout | Error screen **E2** |
 | Zero playable cards after merge | Error screen **E3** |
 | A card id in `card_order` missing from `cards` or words | Card skipped + warning |
+| A words entry breaks a card-level rule (§I.2.2) | Entry dropped + warning (card then skipped as missing a word) |
 | Image fails to load | Placeholder face; card still flips |
 | Audio missing/undecodable | Silent reveal |
 | Font fails | System font stack |
@@ -354,6 +358,7 @@ src/assets/fonts/NotoSans-{Regular,Bold}.woff2     (bundled; Latin + Latin Exten
 src/assets/fonts/OFL.txt                           (SIL Open Font License; ships next to the fonts)
 scripts/{make-fixtures.mjs,build-merged.mjs,audit-standalone.mjs,package.mjs,verify-release.mjs}
 tests/unit/**  tests/component/**  tests/integration/**  tests/e2e/**
+tests/globalSetup.cjs                Jest globalSetup: generates fixtures once if absent, before workers start
 fixtures/content/{decks/animals/**,lang/english/**,lang/spanish/**}   generated
 fixtures/variants/<name>/**                                           generated (failure/edge variants, TESTSPEC §3.2)
 content/{decks/<deck>/**,lang/<lang>/**,icons/<deck>-<lang>.png}     production content
@@ -420,7 +425,7 @@ npm run verify:release
 
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
-| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4, 6, 7 Not started) |
+| MS1 | MVP | 0–4, 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | In progress (Modules 0–2 Done (tested) and Approved 2026-11-06; Module 3 Done (tested) and Approved 2026-11-10; Modules 4, 6, 7 Not started) |
 | MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | Not started |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
@@ -497,6 +502,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | RD-14 | 2026-11-06 | Bundled fonts are Noto Sans from `google/fonts` (`ofl/notosans`, variable `[wdth,wght]`), instanced to static wght 400/700, wdth 100, and subset to Latin + Latin Extended (U+0020–007E, U+00A0–036F, U+1E00–1EFF, U+2000–206F, U+20A0–20CF, U+2100–214F, U+2C60–2C7F, U+A720–A7FF, U+FEFF, U+FFFD) as WOFF2 with HarfBuzz (`subset-font`); `OFL.txt` ships beside them. | Satisfies OQ-11 at ≈ 77–81 KB per weight; static instances keep `FontFace` simple; OFL requires the licence to accompany redistribution. |
 | RD-15 | 2026-11-06 | The FR-01 lockfile check covers only runtime (non-`dev`) lockfile entries; `package.json` is checked in every dependency field. | Dev tooling never ships in the bundle, and tools such as `webpack-dev-server` may legitimately pull utility packages; what ships is guarded by the runtime tree, `dependencies` = `react`/`react-dom`, and the bundle-string audit. |
 | RD-16 | 2026-11-10 | Resolves OQ-12. A `card_order` with more than `MAX_CARDS` playable cards, or with ids missing from `cards`, is not a deck-level violation: at runtime the unknown ids are skipped and the first `MAX_CARDS` playable cards (counted after skipping and de-duplication) are kept, each with a warning (FR-09); `verify:release` fails on both (FR-28, NFR-04). §I.2.1 and UT-11 no longer list them. | Owner decision. Design principle II.1.3: an otherwise usable deck must not block a child; `MAX_CARDS` bounds memory and preloading, which truncation achieves. A runtime warning is invisible on a child's device, so the content team is stopped at release time instead. |
+| RD-17 | 2026-11-10 | Content paths (deck `image`, words `audio`) also reject `\`, `%`, `?`, `#`, tab/CR/LF and empty segments, and match extensions in any case. A words entry that breaks a card-level rule is dropped with a warning instead of failing the file; `DeckError` carries the screen code (`E2`/`E3`) and the full problem list. | Owner approval of Module 3. The URL parser maps `\` to `/`, decodes `%2e%2e` to `..` and strips tab/LF, so "no `..`" alone does not keep a path inside its folder; `.PNG` is a harmless content-team habit. Dropping one entry follows design principle II.1.3, and a code on the error lets boot (FR-10) pick the screen without re-classifying. |
 ## Appendix C — Out of Scope
 
 NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container changes, per-language font packs, analytics dashboards.
@@ -515,10 +521,15 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-06 | FR-06 decoded audio during preload, but FR-13 creates the only `AudioContext` on the first gesture, so boot preload had no context to decode with. Preload now returns bytes; decoding and the silent-buffer fallback moved to the audio player (owner decision). | Integrated (FR-06, FR-13; TESTSPEC UT-09, UT-23) |
 | 2026-11-06 | The Jest jsdom environment has no `TextEncoder`/`TextDecoder`, `fetch`, `caches`, `FontFace` or `document.fonts`; tests stub them (`node:util` for the codecs). With fake timers, attach `expect(p).rejects` before advancing time, or the timeout rejection is reported as unhandled. | Integrated (`tests/unit/loadBinary.test.ts`, `tests/unit/preload.test.ts`) |
 | 2026-11-10 | Two `card_order` rules contradicted each other across sections: §I.2.1/UT-11 made an oversized order and an unknown order id fatal (`DeckError` → E2), while FR-09/UT-13/UT-14 and the `dup-order`/`bigdeck-120` fixtures skip or truncate them. | Integrated (RD-16; §I.2.1, FR-09, FR-28, NFR-04; TESTSPEC UT-11, UT-14, PKG-12, PKG-13) |
+| 2026-11-10 | FR-08 said `validateWords` throws on any violation "likewise", but UT-12 drops a card for a card-level issue and only throws for file-level ones. | Integrated (FR-08, §I.2.2 file-/card-level note, RD-17) |
+| 2026-11-10 | "No scheme, no leading `/`, no `..`" does not keep a path in its folder: the URL parser turns `\` into `/`, `%2e%2e` into `..` and strips tab/LF. | Integrated (§I.2.1, §I.2.2, RD-17; TESTSPEC UT-11, UT-12) |
+| 2026-11-10 | Each fixture-reading test file regenerating `fixtures/` in `beforeAll` races across parallel Jest workers on a clean checkout (`make-fixtures` deletes the tree first). | Integrated (§III.1 `tests/globalSetup.cjs`; TESTSPEC §6) |
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Recorded Module 3 as done and approved, split FR-08 into file-level (E2) and card-level (drop the card) violations, gave `DeckError` its `code`/`problems` contract and FR-09 an E3 `DeckError`, tightened content-path rules (RD-17), added `tests/globalSetup.cjs` to §III.1, and added three Lessons Log entries.
 
 2026-11-10 — Copilot — Resolved OQ-12 as RD-16: an oversized `card_order` or an unknown order id is skipped/truncated at runtime (FR-09, limit counted after de-duplication) instead of being a deck-level violation, and both now fail `verify:release` (FR-28, NFR-04).
 

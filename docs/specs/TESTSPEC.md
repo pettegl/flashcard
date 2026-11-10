@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.3.0 · **Last updated:** 2026-11-10
-**Verifies:** DEVSPEC v1.3.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.4.0 · **Last updated:** 2026-11-10
+**Verifies:** DEVSPEC v1.4.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -82,11 +82,11 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-07 | MVP | `loadBinary` with XHR status 404, status `0` with no body, `onerror`, and timeout; an error before `timeoutMs` | rejects each; timeout aborts the XHR; an early error is reported as itself and nothing is aborted | FR-05 |
 | UT-08 | MVP | `loadBinary` on `https:`: cache miss, cache hit, non-ok status, Cache Storage absent / failing to open / failing to read or write, timeout; `loadJson` UTF-8 with BOM, invalid JSON, load failure | uses `fetch` + `caches` (stores on miss, no fetch on hit); non-ok rejects and caches nothing; cache problems still load via `fetch`; timeout rejects and aborts the fetch; on `file:` `caches.open` is **never** called (spy); `loadJson` parses, rejects on invalid JSON and load failure | FR-05 |
 | UT-09 | MVP | `preload` with 1 of 5 URLs failing; audio and font entries (font load failure, no `FontFace`); a hanging image with `timeoutMs`; concurrency 4; duplicate URLs (`tests/unit/preload.test.ts`) | resolves; failure recorded with a warning; audio entries return bytes (not decoded); font failure non-fatal; hanging asset fails at `timeoutMs` and frees its slot; ≤ 4 in flight; a duplicate URL loads once | FR-06 |
-| UT-10 | MVP | `validateDeck` with the valid fixture | passes | FR-07 |
-| UT-11 | MVP | `validateDeck` table: bad `schema_version`, `deck_id` mismatch, duplicate `card_id`, bad id regex (`Bear`, `a_b`), image with `..`/`/x`/`http://`/bad extension; and the `dup-order` and `bigdeck-120` deck files | throws `DeckError` naming each violation; `dup-order` (unknown order id) and `bigdeck-120` (> `MAX_CARDS`) pass (RD-16) | FR-07 |
-| UT-12 | MVP | `validateWords` table: bad `schema_version`, `deck_id`/`lang` mismatch, empty/65-char `target_word`, audio not under `lang/<lang>/audios/`, audio is a URL, bad extension | each rejected (card-level issues drop the card; file-level issues throw) | FR-08 |
-| UT-13 | MVP | `buildPlayableCards` with `dup-order` and `missing-word-one` data | order respected; duplicate dropped; unknown/missing-word ids skipped with `console.warn`; urls built as `./decks/animals/…`, `./lang/english/…` | FR-09 |
-| UT-14 | MVP | No playable cards; 120-card input; 105 order ids of which 5 are unknown | `E3`; 120 → 100 cards with warning; 105 → 100 cards (limit counted after skipping, no truncation warning) | FR-09 |
+| UT-10 | MVP | `validateDeck` with the valid fixture; every allowed image extension, in any case; a 64-char hyphenated `card_id` (UT-10, UT-11 in `tests/unit/validateDeck.test.ts`) | passes; returns only known fields | FR-07 |
+| UT-11 | MVP | `validateDeck` table: bad/missing `schema_version`, `deck_id` mismatch, duplicate `card_id`, bad id regex (`Bear`, `a_b`, `a--b`, `-a`), 65-char id, non-string id; image with `..`/`/x`/`http://`/`data:`/`C:/`/`\`/`%2e%2e`/`?`/tab/`//`/empty/bad or no extension; card or file not an object; `cards`/`card_order` not an array (of strings); the `bad-schema` variant; several violations at once; and the `dup-order` and `bigdeck-120` deck files | each throws a `DeckError` with `code` `E2` naming the violation; several violations → one error listing all of them; `dup-order` (unknown order id) and `bigdeck-120` (> `MAX_CARDS`) pass (RD-16) | FR-07 |
+| UT-12 | MVP | `validateWords` (`tests/unit/validateWords.test.ts`) — valid: `english`/`spanish` fixtures, absent/`null` audio, padded/HTML-like word kept verbatim, 64 code points (emoji), `.MP3`. File-level: bad `schema_version`, `deck_id`/`lang` mismatch, `cards` not an array, file not an object. Card-level: empty/blank/65-char/non-string `target_word`, audio of another lang or not under `lang/<lang>/audios/`, audio is a URL/absolute/contains `..`, bad extension, missing `card_id`, entry not an object; duplicate `card_id` | valid files pass unchanged; file-level → `DeckError` `E2` listing every problem; card-level → that card dropped with one `[flashcard]` warning naming all its problems, others kept; duplicate → first valid entry kept (FR-08, RD-17) | FR-08 |
+| UT-13 | MVP | `buildPlayableCards` (UT-13, UT-14 in `tests/unit/buildPlayableCards.test.ts`) with primary, `spanish`, `dup-order` and `missing-word-one` data; a card without audio; a deck card absent from `card_order` | order respected; duplicate dropped; unknown/missing-word ids skipped with `console.warn`; urls built as `./decks/animals/…`, `./lang/english/…`; no audio → `audioUrl: null`; card absent from the order not shown | FR-09 |
+| UT-14 | MVP | No playable cards (`no-playable`, empty order, empty words); 120-card input; exactly 100; 105 order ids of which 5 are unknown; 101 order ids with one duplicate | `DeckError` with `code` `E3`; 120 → 100 cards with one warning; 100 → no warning; 105 → 100 cards (limit counted after skipping, no truncation warning); 101 → 100 cards, duplicate warning only | FR-09 |
 | UT-15 | MVP | Reducer initial state | `index`, `face:'front'` as supplied | FR-11 |
 | UT-16 | MVP | `NEXT`/`PREV` at bounds | no-op (no wrap) | FR-11 |
 | UT-17 | MVP | `GO_TO` valid, current, negative, ≥ n, non-integer | valid moves; others no-op | FR-11 |
@@ -202,7 +202,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 ## 6. Build-and-test sequence (dry run)
 
 1. `npm ci` → `npm run fixtures` (verify variants exist and images are true PNG) → `npm run typecheck && npm run lint`.
-2. `npm test` (UT, CT, IT with coverage).
+2. `npm test` (UT, CT, IT with coverage). Jest's `globalSetup` (`tests/globalSetup.cjs`) runs `make-fixtures` once if `fixtures/` is absent, before any worker starts; test files never regenerate fixtures themselves.
 3. `npm run build && npm run audit:standalone` → `npm run build:merged`.
 4. `npx playwright install chromium` → `npm run test:e2e` (against `dist/merged`; prefix `PW_CHANNEL=chrome` where Playwright's browsers are blocked, §2).
 5. `npm run package` → `npm run verify:release` → PKG-06 against extracted ZIPs.
@@ -303,6 +303,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Named the Module 3 test files, extended UT-10…UT-14 with the path-hardening, file-/card-level, verbatim-word, duplicate, `audioUrl: null`, `DeckError` code and de-duplicated-limit cases (independent additions beyond FR-07…FR-09 as first written), documented the Jest fixture `globalSetup`, and now verify DEVSPEC v1.4.x.
 
 2026-11-10 — Copilot — Applied DEVSPEC RD-16 (OQ-12): UT-11 no longer treats an unknown order id or > `MAX_CARDS` as a `DeckError`, UT-14 adds the counted-after-skipping case, PKG-12 fails decks over `MAX_CARDS`, new PKG-13 checks deck integrity in `verify:release`, and the spec now verifies DEVSPEC v1.3.x.
 
