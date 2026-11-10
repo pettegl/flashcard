@@ -53,9 +53,9 @@ Languages: `english` (Alligator, Bear, Cat, Dog, Elephant) and `spanish` (Caimá
 | `no-playable` | words file has zero cards matching the deck |
 | `dup-order` | `card_order` = alligator, bear, bear, ghost, cat (duplicate + unknown id) |
 | `missing-word-one` | words file lacks `dog` |
-| `missing-image` | `cat` image file absent |
-| `missing-audio` | `bear` audio file absent (`english` only) |
-| `long-word` | `cat` target_word is a 40-character string |
+| `missing-image` | `alligator` image file absent (the first card, so the MVP can show it) |
+| `missing-audio` | `alligator` audio file absent (`english` only; the first card) |
+| `long-word` | `alligator` target_word is a 40-character string (the first card) |
 | `html-word` | `dog` target_word is `<b>Dog</b><img src=x onerror=alert(1)>` |
 | `bigdeck` | 100 cards `card-001`…`card-100` (400×300 PNGs, `english` only, words `Card 1`…`Card 100`) |
 | `bigdeck-120` | 120 cards, same scheme (truncation; see DEVSPEC RD-16) |
@@ -173,7 +173,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | E2E-11 | Great | Reveal `dog`, resize 360×640 → 640×360 | still `dog`, still showing word, layout per new vectors | FR-18, AC-32 |
 | E2E-12 | Quality | `@axe-core/playwright` on loading, front, back, error screens | no serious/critical violations; contrast ≥ 7:1 for word | FR-23, NFR-09, AC-35 |
 | E2E-13 | Quality | Keyboard-only: Tab to card, Enter, ArrowRight ×2, Space | flows per AC-33; focus ring visible (screenshot/outline computed style) | FR-23, AC-33 |
-| E2E-14 | MVP | `long-word` variant reveal `cat`; `spanish` language reveal all | long word fully inside card (bounding box); `Caimán`, `Oso`… render with diacritics | AC-08, PR-05 |
+| E2E-14 | MVP | `long-word` variant reveal `alligator`; `spanish` language reveal the current card | long word fully inside card (bounding box); `Caimán` renders with its diacritic | AC-08, PR-05 |
 | E2E-15 | Better | From the front of the current card, 10 alternating taps (waiting out each flip) | `__audioStarts` +1 per reveal (5 of 10 taps), none on back → front; back face shows the word; front shows the image | FR-13, FR-16, AC-12 |
 | SEC-01 | MVP | Launch with `cr_book=../x`, `cr_lang=%2e%2e` | E1 shown; zero content requests issued | FR-03, NFR-06, AC-02 |
 | PERF-01 | MVP | `bigdeck` (100 cards), CPU throttle 4×, offline | ready UI < 10 s; no long task > 500 ms during boot | NFR-02, FR-10 |

@@ -2,7 +2,7 @@
  * @jest-environment-options {"url": "file:///flashcard/index.html"}
  */
 import '@testing-library/jest-dom';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { TextDecoder as NodeTextDecoder } from 'node:util';
@@ -10,7 +10,7 @@ import { App } from '../../src/app/App';
 import { boot, LOAD_GATE_MS } from '../../src/app/boot';
 import { IS_FILE_ORIGIN } from '../../src/platform/env';
 
-// IT-01, IT-02, IT-04 (FR-10): boot over the generated fixtures through a mocked file:// XHR.
+// IT-01…IT-04 (FR-10, FR-06, FR-14, FR-15): boot over the generated fixtures through a mocked file:// XHR.
 const ROOT = resolve(__dirname, '../..');
 const CONTENT = join(ROOT, 'fixtures', 'content');
 const FONTS = join(ROOT, 'src', 'assets', 'fonts');
@@ -195,6 +195,96 @@ describe('IT-02 boot failures', () => {
     expect(await screen.findByTestId('error-code')).toHaveTextContent(/^E1$/);
     expect(FakeXhr.requests).toEqual([]);
     expect(FakeImage.requests).toEqual([]);
+    expect(error).not.toHaveBeenCalled();
+  });
+});
+
+describe('IT-03 missing assets degrade, never block', () => {
+  // A minimal Web Audio stand-in: decoding succeeds, every started source is counted.
+  let starts: string[];
+  class FakeAudioContext {
+    state = 'running';
+    sampleRate = 44100;
+    destination = {};
+    createBufferSource() {
+      const source = { buffer: null as unknown, connect: jest.fn(), disconnect: jest.fn(), stop: jest.fn() };
+      return { ...source, start: () => starts.push('start') };
+    }
+    createBuffer() {
+      return {};
+    }
+    decodeAudioData(_data: ArrayBuffer, ok: (buffer: unknown) => void) {
+      ok({});
+    }
+    resume() {
+      return Promise.resolve();
+    }
+  }
+
+  beforeEach(() => {
+    starts = [];
+    setGlobal('AudioContext', FakeAudioContext);
+    // jsdom has no canvas; the word then keeps its start size (canvasMeasure fallback).
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    delete (globalThis as { AudioContext?: unknown }).AudioContext;
+    jest.restoreAllMocks();
+  });
+
+  async function revealFirstCard() {
+    const card = await screen.findByTestId('card-current');
+    fireEvent.click(card);
+    await act(() => new Promise((done) => setTimeout(done, 0)));
+    return card;
+  }
+
+  it('control: the primary content reveal starts its audio once', async () => {
+    render(<App search={VALID} />);
+    await revealFirstCard();
+    expect(screen.getByTestId('face-back')).toHaveTextContent(/^Alligator$/);
+    expect(starts).toHaveLength(1);
+  });
+
+  it('missing-image: the first card shows the placeholder and still reveals its word', async () => {
+    useVariant('missing-image');
+    render(<App search={VALID} />);
+
+    const card = await screen.findByTestId('card-current');
+    const img = card.querySelector('img') as HTMLImageElement;
+    expect(img).toHaveAttribute('src', './decks/animals/images/alligator.png');
+    expect(existsSync(fileFor(img.getAttribute('src') as string))).toBe(false);
+    // jsdom never loads <img> resources; dispatch the error the browser raises for the absent file.
+    fireEvent.error(img);
+    expect(screen.getByTestId('image-placeholder')).toBeInTheDocument();
+
+    await revealFirstCard();
+    expect(screen.getByTestId('face-back')).toHaveTextContent(/^Alligator$/);
+    expect(starts).toHaveLength(1);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('missing-audio: the reveal shows the word silently, with no error', async () => {
+    useVariant('missing-audio');
+    render(<App search={VALID} />);
+    await revealFirstCard();
+
+    expect(screen.getByTestId('face-back')).toHaveTextContent(/^Alligator$/);
+    expect(starts).toEqual([]);
+    expect(screen.queryByTestId('error-code')).not.toBeInTheDocument();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('missing-word-one: dog is skipped with a warning and the deck still plays', async () => {
+    useVariant('missing-word-one');
+    render(<App search={VALID} />);
+
+    const card = await screen.findByTestId('card-current');
+    expect(card).toHaveAccessibleName('Card 1 of 4. Activate to reveal the word.');
+    expect(warn.mock.calls.some(([message]) => /\[flashcard\].*dog/.test(String(message)))).toBe(true);
+    await revealFirstCard();
+    expect(screen.getByTestId('face-back')).toHaveTextContent(/^Alligator$/);
     expect(error).not.toHaveBeenCalled();
   });
 });

@@ -131,10 +131,12 @@ describe('fixture variants (TESTSPEC §3.2)', () => {
     ]);
     expect(wordOf('missing-word-one', 'dog')).toBeUndefined();
     expect(wordOf('missing-word-one', 'cat')).toBe('Cat');
-    expect(existsSync(variant('missing-image', 'decks/animals/images/cat.png'))).toBe(false);
-    expect(existsSync(variant('missing-image', 'decks/animals/images/dog.png'))).toBe(true);
-    expect(existsSync(variant('missing-audio', 'lang/english/audios/animals_bear.wav'))).toBe(false);
-    expect(wordOf('long-word', 'cat')).toHaveLength(40);
+    expect(existsSync(variant('missing-image', 'decks/animals/images/alligator.png'))).toBe(false);
+    expect(existsSync(variant('missing-image', 'decks/animals/images/bear.png'))).toBe(true);
+    expect(existsSync(variant('missing-audio', 'lang/english/audios/animals_alligator.wav'))).toBe(false);
+    expect(existsSync(variant('missing-audio', 'lang/english/audios/animals_bear.wav'))).toBe(true);
+    expect(wordOf('long-word', 'alligator')).toHaveLength(40);
+    expect(wordOf('long-word', 'cat')).toBe('Cat');
     expect(wordOf('html-word', 'dog')).toBe('<b>Dog</b><img src=x onerror=alert(1)>');
   });
 

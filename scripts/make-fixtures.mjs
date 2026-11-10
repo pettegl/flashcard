@@ -202,13 +202,14 @@ const VARIANT_BUILDERS = {
       wordsPath(dir),
       wordsJson('english', CARDS.filter((c) => c.id !== 'dog'), (c) => WORDS.english[c.id]),
     ),
-  'missing-image': (dir) => rmSync(join(dir, 'decks', DECK, 'images', 'cat.png')),
-  'missing-audio': (dir) => rmSync(join(dir, 'lang', 'english', 'audios', `${DECK}_bear.wav`)),
+  // The card-level variants target the first card, the only one the MVP shows (RD-11).
+  'missing-image': (dir) => rmSync(join(dir, 'decks', DECK, 'images', 'alligator.png')),
+  'missing-audio': (dir) => rmSync(join(dir, 'lang', 'english', 'audios', `${DECK}_alligator.wav`)),
   'long-word': (dir) =>
     writeJson(
       wordsPath(dir),
       wordsJson('english', CARDS, (c) =>
-        c.id === 'cat' ? 'Supercalifragilisticexpialidociouscatcat' : WORDS.english[c.id],
+        c.id === 'alligator' ? 'Supercalifragilisticexpialidociousgators' : WORDS.english[c.id],
       ),
     ),
   'html-word': (dir) =>

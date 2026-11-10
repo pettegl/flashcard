@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { DeckProvider, useDeck } from '../state/DeckContext';
+import { useEffect, useMemo, useState } from 'react';
+import { createAudioPlayer } from '../audio/audioPlayer';
+import { DeckProvider } from '../state/DeckContext';
+import { CurrentCard } from '../ui/Card';
 import { ErrorScreen, type ErrorCode } from '../ui/ErrorScreen';
 import { LoadingScreen } from '../ui/LoadingScreen';
 import { boot, type ReadyDeck } from './boot';
@@ -46,25 +48,20 @@ function Game({ search = window.location.search }: AppProps) {
     case 'error':
       return <ErrorScreen code={state.code} />;
     case 'ready':
-      return (
-        <DeckProvider cards={state.deck.cards} index={state.deck.index}>
-          <CurrentCardStandIn />
-        </DeckProvider>
-      );
+      return <ReadyScreen deck={state.deck} />;
   }
 }
 
-// Minimal ready UI (front face of the current card) until the Card component lands in Module 7 (FR-14).
-function CurrentCardStandIn() {
-  const { state } = useDeck();
-  const card = state.cards[state.index];
+// S-3 (MVP): the first card only; navigation arrives in Better (FR-14, RD-11).
+function ReadyScreen({ deck }: { deck: ReadyDeck }) {
+  const audio = useMemo(() => createAudioPlayer(deck.cards, deck.preloaded), [deck]);
+  useEffect(() => () => audio.stop(), [audio]);
+
   return (
-    <main className="screen">
-      <div className="card-standin" data-testid="card-current" data-card-id={card.cardId}>
-        <div className="card-standin__face" data-testid="face-front">
-          <img className="card-standin__image" src={card.imageUrl} alt="" draggable={false} />
-        </div>
-      </div>
-    </main>
+    <DeckProvider cards={deck.cards} index={deck.index}>
+      <main className="screen">
+        <CurrentCard audio={audio} />
+      </main>
+    </DeckProvider>
   );
 }
