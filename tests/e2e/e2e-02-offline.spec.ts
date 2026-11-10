@@ -2,20 +2,28 @@ import { expect, test } from '@playwright/test';
 import { appUrl, assertMergedBuild, audioStarts, countAudioStarts, disallowedRequests, recordPage } from './helpers';
 
 // E2E-02 (NFR-01, NFR-10, K-2): offline load and a pass through every reachable card issues only
-// file:/data:/blob: requests, with no console.error and no uncaught exception. At MVP the only reachable
-// card is the first one (navigation arrives with FR-16/FR-17), so the pass is its front and back.
+// file:/data:/blob: requests, with no console.error and no uncaught exception. From Better every card is
+// reachable with the arrows (FR-17): each is revealed on the way forward, then the pass returns to card 1.
 test.beforeAll(assertMergedBuild);
 
-test('E2E-02 load and reveal stay offline and error-free', async ({ page }) => {
+const WORDS = ['Alligator', 'Bear', 'Cat', 'Dog', 'Elephant'];
+
+test('E2E-02 load and a pass through every card stay offline and error-free', async ({ page }) => {
   const log = recordPage(page);
   await countAudioStarts(page);
   await page.goto(appUrl());
   const card = page.getByTestId('card-current');
-  await expect(page.getByTestId('face-front').locator('img')).toHaveJSProperty('complete', true);
+  const next = page.getByTestId('btn-next');
 
-  await card.tap();
-  await expect(page.getByTestId('face-back')).toBeVisible();
-  await expect.poll(() => audioStarts(page)).toBe(1);
+  for (const [i, word] of WORDS.entries()) {
+    await expect(page.getByTestId('face-front').locator('img')).toHaveJSProperty('complete', true);
+    await card.tap();
+    await expect(page.getByTestId('face-back')).toHaveText(word);
+    await expect.poll(() => audioStarts(page)).toBe(i + 1);
+    if (i < WORDS.length - 1) await next.tap();
+  }
+  for (let i = WORDS.length - 1; i > 0; i--) await page.getByTestId('btn-prev').tap();
+  await expect(card).toHaveAttribute('data-card-id', 'alligator');
   // Let the background preload of the remaining cards finish.
   await page.waitForLoadState('networkidle');
 

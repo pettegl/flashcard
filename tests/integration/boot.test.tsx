@@ -353,8 +353,8 @@ describe('IT-04 loading gate', () => {
   });
 });
 
-// The save half runs through DeckProvider's onIndexChange (CT-14 file); with no arrows yet (FR-17), the
-// navigation to card 4 is the progress it saves, written through saveProgress.
+// Restore part (Module 5): progress written through saveProgress. Navigation part (Module 8): the Next
+// arrow (FR-17) changes the card, and DeckProvider's onIndexChange saves it (FR-12, RD-23).
 describe('IT-05 resume', () => {
   const ANIMALS_SCOPE = { lang: 'english', deck: 'animals' };
 
@@ -399,5 +399,27 @@ describe('IT-05 resume', () => {
     saveProgress({ lang: 'spanish', deck: 'animals' }, 'dog');
     render(<App search={VALID} />);
     expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'alligator');
+  });
+
+  it('navigation part: Next to card 4, remount → restored on card 4 (dog) front', async () => {
+    const first = render(<App search={VALID} />);
+    expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'alligator');
+    expect(window.localStorage.getItem('flashcard:v1:english:animals')).toBeNull(); // the seed is not saved
+
+    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByTestId('btn-next'));
+    expect(screen.getByTestId('card-current')).toHaveAttribute('data-card-id', 'dog');
+    expect(window.localStorage.length).toBe(1);
+    expect(window.localStorage.getItem('flashcard:v1:english:animals')).toBe('{"card_id":"dog"}');
+
+    first.unmount();
+    render(<App search={VALID} />);
+
+    const current = await screen.findByTestId('card-current');
+    expect(current).toHaveAttribute('data-card-id', 'dog');
+    expect(current).toHaveAccessibleName('Card 4 of 5. Activate to reveal the word.');
+    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
   });
 });

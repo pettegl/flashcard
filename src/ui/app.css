@@ -156,6 +156,64 @@ body {
   overflow-wrap: anywhere;
 }
 
+/*
+ * NavArrows — Better only (FR-17, UISPEC §U.6); delete this block with NavArrows.tsx when FR-18 ships.
+ * S-4 content block: card + 16 px + arrows row, centered. ARROW_SIZE_PX = 56, 32 px between arrows.
+ */
+.screen--ready {
+  flex-direction: column;
+}
+
+.nav-arrows {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.nav-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--card-border);
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.nav-arrow + .nav-arrow {
+  margin-left: 32px;
+}
+
+.nav-arrow[aria-disabled='true'] {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.nav-arrow:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.nav-arrow:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.nav-arrow__icon {
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+/* End NavArrows. */
+
 .visually-hidden {
   position: absolute;
   width: 1px;

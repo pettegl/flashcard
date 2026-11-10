@@ -6,6 +6,7 @@ import { saveProgress } from '../storage/progress';
 import { CurrentCard } from '../ui/Card';
 import { ErrorScreen, type ErrorCode } from '../ui/ErrorScreen';
 import { LoadingScreen } from '../ui/LoadingScreen';
+import { NavArrows } from '../ui/NavArrows';
 import { boot, type ReadyDeck } from './boot';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -54,7 +55,7 @@ function Game({ search = window.location.search }: AppProps) {
   }
 }
 
-// S-3: the current card (FR-14…FR-16), resumed from and saved to progress (FR-12). Arrows arrive with FR-17.
+// S-4: the current card (FR-14…FR-16) with arrows below it (FR-17), resumed from and saved to progress (FR-12).
 function ReadyScreen({ deck }: { deck: ReadyDeck }) {
   const audio = useMemo(() => createAudioPlayer(deck.cards, deck.preloaded), [deck]);
   useEffect(() => () => audio.stop(), [audio]);
@@ -62,8 +63,9 @@ function ReadyScreen({ deck }: { deck: ReadyDeck }) {
 
   return (
     <DeckProvider cards={deck.cards} index={deck.index} onIndexChange={save}>
-      <main className="screen">
+      <main className="screen screen--ready">
         <CurrentCard audio={audio} />
+        <NavArrows audio={audio} />
       </main>
     </DeckProvider>
   );
