@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.2.0 · **Last updated:** 2026-11-06
-**Verifies:** DEVSPEC v1.2.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.3.0 · **Last updated:** 2026-11-10
+**Verifies:** DEVSPEC v1.3.x (`FR-`, `NFR-`) and UISPEC v1.0.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -58,7 +58,7 @@ Languages: `english` (Alligator, Bear, Cat, Dog, Elephant) and `spanish` (Caimá
 | `long-word` | `cat` target_word is a 40-character string |
 | `html-word` | `dog` target_word is `<b>Dog</b><img src=x onerror=alert(1)>` |
 | `bigdeck` | 100 cards `card-001`…`card-100` (400×300 PNGs, `english` only, words `Card 1`…`Card 100`) |
-| `bigdeck-120` | 120 cards, same scheme (truncation; see DEVSPEC OQ-12) |
+| `bigdeck-120` | 120 cards, same scheme (truncation; see DEVSPEC RD-16) |
 
 ### 3.3 Test hooks (testability contract; the app must provide)
 
@@ -83,10 +83,10 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | UT-08 | MVP | `loadBinary` on `https:`: cache miss, cache hit, non-ok status, Cache Storage absent / failing to open / failing to read or write, timeout; `loadJson` UTF-8 with BOM, invalid JSON, load failure | uses `fetch` + `caches` (stores on miss, no fetch on hit); non-ok rejects and caches nothing; cache problems still load via `fetch`; timeout rejects and aborts the fetch; on `file:` `caches.open` is **never** called (spy); `loadJson` parses, rejects on invalid JSON and load failure | FR-05 |
 | UT-09 | MVP | `preload` with 1 of 5 URLs failing; audio and font entries (font load failure, no `FontFace`); a hanging image with `timeoutMs`; concurrency 4; duplicate URLs (`tests/unit/preload.test.ts`) | resolves; failure recorded with a warning; audio entries return bytes (not decoded); font failure non-fatal; hanging asset fails at `timeoutMs` and frees its slot; ≤ 4 in flight; a duplicate URL loads once | FR-06 |
 | UT-10 | MVP | `validateDeck` with the valid fixture | passes | FR-07 |
-| UT-11 | MVP | `validateDeck` table: bad `schema_version`, `deck_id` mismatch, duplicate `card_id`, bad id regex (`Bear`, `a_b`), image with `..`/`/x`/`http://`/bad extension, order id unknown, >`MAX_CARDS` | throws `DeckError` naming each violation | FR-07 |
+| UT-11 | MVP | `validateDeck` table: bad `schema_version`, `deck_id` mismatch, duplicate `card_id`, bad id regex (`Bear`, `a_b`), image with `..`/`/x`/`http://`/bad extension; and the `dup-order` and `bigdeck-120` deck files | throws `DeckError` naming each violation; `dup-order` (unknown order id) and `bigdeck-120` (> `MAX_CARDS`) pass (RD-16) | FR-07 |
 | UT-12 | MVP | `validateWords` table: bad `schema_version`, `deck_id`/`lang` mismatch, empty/65-char `target_word`, audio not under `lang/<lang>/audios/`, audio is a URL, bad extension | each rejected (card-level issues drop the card; file-level issues throw) | FR-08 |
 | UT-13 | MVP | `buildPlayableCards` with `dup-order` and `missing-word-one` data | order respected; duplicate dropped; unknown/missing-word ids skipped with `console.warn`; urls built as `./decks/animals/…`, `./lang/english/…` | FR-09 |
-| UT-14 | MVP | No playable cards; 120-card input | `E3`; 120 → 100 cards with warning | FR-09 |
+| UT-14 | MVP | No playable cards; 120-card input; 105 order ids of which 5 are unknown | `E3`; 120 → 100 cards with warning; 105 → 100 cards (limit counted after skipping, no truncation warning) | FR-09 |
 | UT-15 | MVP | Reducer initial state | `index`, `face:'front'` as supplied | FR-11 |
 | UT-16 | MVP | `NEXT`/`PREV` at bounds | no-op (no wrap) | FR-11 |
 | UT-17 | MVP | `GO_TO` valid, current, negative, ≥ n, non-integer | valid moves; others no-op | FR-11 |
@@ -151,7 +151,8 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | PKG-09 | MVP | Forbidden-code audit (`tests/unit/audit-standalone.test.ts`): (a) clean bundle passes; (b) inject each forbidden string (`statsig`, `googletagmanager`, `gtag`, `sentry`, `workbox`, `serviceWorker.register`, `firebase`, `mixpanel`, `fbevents`, `cdn.jsdelivr`) and a forbidden dependency name (in `package.json` or the runtime part of the lockfile) → audit **fails** each time; `caches.open` allowed only in `loadBinary` | pass / fail as stated | FR-01, FR-28, §II.3 |
 | PKG-10 | Release | Cross-reference every `image`/`audio` path in all JSON | each exists in the merged tree | FR-28 |
 | PKG-11 | Release | Tile icon check | true PNG, square, ≥ 192 px (≥ 512 preferred) | FR-28 |
-| PKG-12 | Release | Budgets | warnings (not failures) over NFR-04 limits; failure if any ZIP > `ZIP_MAX_BYTES` | NFR-04, FR-27 |
+| PKG-12 | Release | Budgets | warnings (not failures) over the NFR-04 image/audio guidance; failure if any ZIP > `ZIP_MAX_BYTES` or a deck > `MAX_CARDS` | NFR-04, FR-27 |
+| PKG-13 | Release | Deck integrity: run `verify:release` on content whose `card_order` has an id missing from `cards`, and on one with `MAX_CARDS + 1` distinct ids; then on valid content | fails naming the deck and the id (resp. the count); valid content passes | FR-28, NFR-04 |
 
 ### 4.5 End-to-end (Playwright, `file://`, offline)
 
@@ -195,7 +196,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | MS2 Better | MS1 + FR-12, FR-16, FR-17 | + UT-18, 21, 22; CT-03, 04; IT-05; E2E-06; PERF-02; UT-19 **deleted** |
 | MS3 Great | MS2 + Modules 9–10 | + UT-24, 25; CT-05…08, 11, 13; E2E-04, 05, 09…13; CT-04 **deleted** |
 | MS4 Telemetry | MS3 + Module 11 | UT-27…31; E2E-07, 08 |
-| MS5 Release | MS4 + Module 12 | PKG-01…12; MAN-01…06 signed off; `npm run verify:release` clean |
+| MS5 Release | MS4 + Module 12 | PKG-01…13; MAN-01…06 signed off; `npm run verify:release` clean |
 | Project done | all of the above | every row in §8 covered and green; coverage ≥ NFR-08; human review (security, architecture, behavior) approved |
 
 ## 6. Build-and-test sequence (dry run)
@@ -244,12 +245,12 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | FR-25 | UT-29, E2E-08 |
 | FR-26 | UT-30, E2E-08 |
 | FR-27 | PKG-01…04, PKG-12 |
-| FR-28 | PKG-02, PKG-05…11 |
+| FR-28 | PKG-02, PKG-05…11, PKG-13 |
 | FR-29 | MAN-01, MAN-05 |
 | NFR-01 | E2E-02, MAN-03, PKG-06 |
 | NFR-02 | E2E-01, PERF-01, MAN-01 |
 | NFR-03 | PERF-02, MAN-06 |
-| NFR-04 | PKG-12 |
+| NFR-04 | PKG-12, PKG-13 |
 | NFR-05 | IT-03, CT-10 |
 | NFR-06 | UT-03, SEC-01, CT-12 |
 | NFR-07 | BLD-01, MAN-01, MAN-02 |
@@ -302,6 +303,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Applied DEVSPEC RD-16 (OQ-12): UT-11 no longer treats an unknown order id or > `MAX_CARDS` as a `DeckError`, UT-14 adds the counted-after-skipping case, PKG-12 fails decks over `MAX_CARDS`, new PKG-13 checks deck integrity in `verify:release`, and the spec now verifies DEVSPEC v1.3.x.
 
 2026-11-06 — Copilot — Named the Module 2 test files, extended UT-07/08 with the no-body, early-error, Cache Storage fallback and `loadJson` cases, rewrote UT-09 for typed preload entries with bytes-only audio, moved the silent-buffer check to UT-23, and now verify DEVSPEC v1.2.x.
 

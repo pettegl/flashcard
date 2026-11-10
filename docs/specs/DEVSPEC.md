@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.2.0 · **Last updated:** 2026-11-06
+**Status:** Draft · **Version:** 1.3.0 · **Last updated:** 2026-11-10
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -52,7 +52,7 @@ Flashcard is a single-page **TypeScript + React** web game, built into a *standa
 | `deck_id` | must equal the `cr_book` launch value |
 | `cards[].card_id` | unique; regex `^[a-z0-9]+(-[a-z0-9]+)*$`; ≤ 64 chars (no underscore — `_` is the audio-filename delimiter) |
 | `cards[].image` | relative path inside `decks/<deck>/`; no scheme, no leading `/`, no `..`; extension `png\|jpg\|jpeg\|webp\|svg` |
-| `card_order` | array of `card_id`; defines display order; ≤ `MAX_CARDS` |
+| `card_order` | array of `card_id`; defines display order. Ids missing from `cards`, later duplicates and playable cards beyond `MAX_CARDS` are not schema violations: they are skipped or truncated at runtime (FR-09) and fail `verify:release` (FR-28) — RD-16 |
 
 Brief mapping: `cards` ≙ the brief's "card definitions" (minus `target_word`, which is language-specific and moved to the lang tier — RD-8); `card_order` ≙ the brief's `card_order` array.
 
@@ -94,7 +94,7 @@ Key `flashcard:v1:<lang>:<deck>` → `{"card_id":"bear"}`. Never stores user ide
 | Name | Value | Used by |
 |---|---|---|
 | `LOAD_GATE_MS` | 5000 | FR-10 |
-| `MAX_CARDS` | 100 | FR-09 |
+| `MAX_CARDS` | 100 | FR-09, FR-28 |
 | `PRELOAD_CONCURRENCY` | 4 | FR-06 |
 | `ENVELOPE_MAX_BYTES` | 65536 | FR-24 |
 | `ZIP_MAX_BYTES` | 209715200 (200 MiB) | FR-27 |
@@ -143,7 +143,7 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 |---|---|---|---|
 | FR-07 | MVP | `validateDeck(json, deck)` enforces §I.2.1. Any violation → throws `DeckError` listing every problem. | PR-04 |
 | FR-08 | MVP | `validateWords(json, deck, lang)` enforces §I.2.2 likewise. | PR-04, PR-05 |
-| FR-09 | MVP | `buildPlayableCards(deck, words)`: iterate `card_order`; skip (with `console.warn('[flashcard] …')`) ids missing from `cards` or from `words`; drop later duplicates in `card_order`; result length ≤ `MAX_CARDS` (excess truncated with a warning). Empty result → error **E3**. A deck-level schema violation → **E2**. Per-card problems (missing word/audio/image) are never fatal. | PR-04, PR-16 |
+| FR-09 | MVP | `buildPlayableCards(deck, words)`: iterate `card_order`; skip (with `console.warn('[flashcard] …')`) ids missing from `cards` or from `words`; drop later duplicates in `card_order`; result length ≤ `MAX_CARDS`, counted after skipping and de-duplication: the first `MAX_CARDS` playable cards are kept and the excess truncated with a warning (RD-16). Empty result → error **E3**. A deck-level schema violation → **E2**. Per-card problems (missing word/audio/image) are never fatal. | PR-04, PR-16 |
 
 **Exit:** UT-10…UT-14 pass, covering every rule in the tables above.
 
@@ -243,7 +243,7 @@ A flush with `duration_ms == 0` and no interaction is skipped. A segment is flus
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
 | FR-27 | Release | `npm run package` builds `release/flashcard-core.zip`, `release/flashcard-book-<deck>.zip`, `release/flashcard-book-<deck>-lang-<lang>.zip` from `dist/standalone` and the production content directory (§III.1). ZIPs have no wrapping folder; each ≤ `ZIP_MAX_BYTES`. | PR-12 |
-| FR-28 | Release | `npm run verify:release` checks: names/tokens; engine ZIP has root `index.html` and no `lang/`/`decks/`; core ZIP only `decks/<deck>/**`; lang ZIP only `lang/<lang>/**`; all ZIPs extract into one directory with no overwritten path; every referenced image/audio exists; images and the tile icon are **true PNG/JPEG/WebP by magic bytes** matching their extension; no `.map`; no absolute `src="/`/`url(/`; no `http(s)://` in JSON data; no forbidden strings in the bundle (§II.3). | PR-12 |
+| FR-28 | Release | `npm run verify:release` checks: names/tokens; engine ZIP has root `index.html` and no `lang/`/`decks/`; core ZIP only `decks/<deck>/**`; lang ZIP only `lang/<lang>/**`; all ZIPs extract into one directory with no overwritten path; every referenced image/audio exists; every `card_order` id exists in the deck's `cards`, and `card_order` has ≤ `MAX_CARDS` distinct ids (RD-16); images and the tile icon are **true PNG/JPEG/WebP by magic bytes** matching their extension; no `.map`; no absolute `src="/`/`url(/`; no `http(s)://` in JSON data; no forbidden strings in the bundle (§II.3). | PR-12 |
 | FR-29 | Release | Manual upload runbook (CR§8) is followed and recorded in the release notes: reserve slug → upload engine → reserve core + upload deck → upload each lang pack (+ true-PNG icon ≥ 512×512 preferred) → `list_inventory` → promote → ask Curious Learning staff to Publish. | PR-12 |
 
 **Exit:** `verify:release` passes; MAN-01…MAN-06 signed off.
@@ -267,7 +267,7 @@ A flush with `duration_ms == 0` and no interaction is skipped. A segment is flus
 | NFR-01 | **Offline:** zero requests to non-`file:`/`data:`/`blob:` schemes during load and play; zero `NETGUARD_BLOCK` log entries (CR§1). |
 | NFR-02 | **Load:** loading screen clears < 10 s on the reference device with network off (gate at `LOAD_GATE_MS`). |
 | NFR-03 | **Responsiveness:** tap → flip start ≤ 100 ms; animations target 60 fps on the reference device. Reference device: mid/low-end Android phone, Android 8+ WebView (exact model recorded in the release notes). |
-| NFR-04 | **Asset budgets (guidance enforced by `verify:release` warnings):** image ≤ 300 KB and ≤ 1600 px on the long side; audio ≤ 200 KB and ≤ 5 s; deck ≤ `MAX_CARDS`; each ZIP ≤ `ZIP_MAX_BYTES`. |
+| NFR-04 | **Asset budgets:** image ≤ 300 KB and ≤ 1600 px on the long side; audio ≤ 200 KB and ≤ 5 s — guidance, enforced by `verify:release` warnings. Deck ≤ `MAX_CARDS` and each ZIP ≤ `ZIP_MAX_BYTES` are hard limits: `verify:release` fails (FR-28, RD-16). |
 | NFR-05 | **Reliability:** any single missing/corrupt image, audio, font, or card never produces an uncaught exception or blank screen. |
 | NFR-06 | **Security/privacy:** no PII; `cr_user_id` is used only as an opaque envelope field; launch params validated by regex before use; deck text rendered as text (no `dangerouslySetInnerHTML`); no `eval`/`new Function`; no third-party runtime code. |
 | NFR-07 | **Compatibility:** browserslist `chrome >= 80, ios_saf >= 13` (pending OQ-3). Avoid APIs newer than that without fallback (notably `crypto.randomUUID` → FR-24 fallback; CSS `aspect-ratio` → not used, sizes computed in JS). |
@@ -476,7 +476,6 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | OQ-9 | May the core ZIP use `decks/` and the lang ZIP deck-prefixed names inside `lang/<lang>/`? | FR-27 | Yes, per CR§5.2 disjoint-subtree rule |
 | OQ-10 | Who produces tile icons (per deck × language)? | FR-29 | Content team, true PNG ≥ 512×512 |
 | OQ-11 | Which scripts must render at launch (beyond Latin)? | none | Latin + Latin Extended (bundled Noto Sans); others fall back to system font |
-| OQ-12 | A `card_order` longer than `MAX_CARDS`: deck-level violation (§I.2.1, UT-11 → `DeckError` → **E2**) or truncation with a warning (FR-09, UT-14, fixture `bigdeck-120`)? The two rules contradict each other. | FR-07, FR-09, UT-11, UT-14 (Module 3) | Truncate with a warning (FR-09 wins; design principle II.1.3 "a child is never stuck"); remove `> MAX_CARDS` from §I.2.1 and UT-11 when resolved |
 
 ## Appendix B — Resolved Decisions
 
@@ -497,7 +496,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | RD-13 | 2026-11-06 | Lint with ESLint 10 and flat config (`eslint.config.mjs`) instead of `.eslintrc.cjs`; `eslint-plugin-react` is not used (no ESLint 10 support), `eslint-plugin-react-hooks` is. | Owner decision. ESLint 8, the last line supporting `.eslintrc`, has been end-of-life since 2024-10, and ESLint 10 removed eslintrc. |
 | RD-14 | 2026-11-06 | Bundled fonts are Noto Sans from `google/fonts` (`ofl/notosans`, variable `[wdth,wght]`), instanced to static wght 400/700, wdth 100, and subset to Latin + Latin Extended (U+0020–007E, U+00A0–036F, U+1E00–1EFF, U+2000–206F, U+20A0–20CF, U+2100–214F, U+2C60–2C7F, U+A720–A7FF, U+FEFF, U+FFFD) as WOFF2 with HarfBuzz (`subset-font`); `OFL.txt` ships beside them. | Satisfies OQ-11 at ≈ 77–81 KB per weight; static instances keep `FontFace` simple; OFL requires the licence to accompany redistribution. |
 | RD-15 | 2026-11-06 | The FR-01 lockfile check covers only runtime (non-`dev`) lockfile entries; `package.json` is checked in every dependency field. | Dev tooling never ships in the bundle, and tools such as `webpack-dev-server` may legitimately pull utility packages; what ships is guarded by the runtime tree, `dependencies` = `react`/`react-dom`, and the bundle-string audit. |
-
+| RD-16 | 2026-11-10 | Resolves OQ-12. A `card_order` with more than `MAX_CARDS` playable cards, or with ids missing from `cards`, is not a deck-level violation: at runtime the unknown ids are skipped and the first `MAX_CARDS` playable cards (counted after skipping and de-duplication) are kept, each with a warning (FR-09); `verify:release` fails on both (FR-28, NFR-04). §I.2.1 and UT-11 no longer list them. | Owner decision. Design principle II.1.3: an otherwise usable deck must not block a child; `MAX_CARDS` bounds memory and preloading, which truncation achieves. A runtime warning is invisible on a child's device, so the content team is stopped at release time instead. |
 ## Appendix C — Out of Scope
 
 NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container changes, per-language font packs, analytics dashboards.
@@ -515,11 +514,13 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-06 | Re-evaluating boot-time constants (FR-04) in a test with `jest.isolateModules` + `require()` fails lint (`@typescript-eslint/no-require-imports`); use `jest.isolateModulesAsync` with a dynamic `import()`. | Integrated (`tests/unit/env.test.ts`; TESTSPEC UT-05) |
 | 2026-11-06 | FR-06 decoded audio during preload, but FR-13 creates the only `AudioContext` on the first gesture, so boot preload had no context to decode with. Preload now returns bytes; decoding and the silent-buffer fallback moved to the audio player (owner decision). | Integrated (FR-06, FR-13; TESTSPEC UT-09, UT-23) |
 | 2026-11-06 | The Jest jsdom environment has no `TextEncoder`/`TextDecoder`, `fetch`, `caches`, `FontFace` or `document.fonts`; tests stub them (`node:util` for the codecs). With fake timers, attach `expect(p).rejects` before advancing time, or the timeout rejection is reported as unhandled. | Integrated (`tests/unit/loadBinary.test.ts`, `tests/unit/preload.test.ts`) |
-
+| 2026-11-10 | Two `card_order` rules contradicted each other across sections: §I.2.1/UT-11 made an oversized order and an unknown order id fatal (`DeckError` → E2), while FR-09/UT-13/UT-14 and the `dup-order`/`bigdeck-120` fixtures skip or truncate them. | Integrated (RD-16; §I.2.1, FR-09, FR-28, NFR-04; TESTSPEC UT-11, UT-14, PKG-12, PKG-13) |
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Resolved OQ-12 as RD-16: an oversized `card_order` or an unknown order id is skipped/truncated at runtime (FR-09, limit counted after de-duplication) instead of being a deck-level violation, and both now fail `verify:release` (FR-28, NFR-04).
 
 2026-11-06 — Copilot — Recorded Module 2 as done and approved, gave `loadJson` a `timeoutMs`, changed FR-06 to typed preload entries returning a per-URL result map with audio loaded as bytes only, moved audio decoding and the silent-buffer fallback to FR-13, and added two Lessons Log entries.
 
