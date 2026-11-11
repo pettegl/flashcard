@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.10.0 · **Last updated:** 2026-11-10
-**Verifies:** DEVSPEC v1.10.x (`FR-`, `NFR-`) and UISPEC v1.1.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.10.1 · **Last updated:** 2026-11-11
+**Verifies:** DEVSPEC v1.11.x (`FR-`, `NFR-`) and UISPEC v1.1.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -178,7 +178,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | E2E-15 | Better | From the front of the current card, 10 alternating taps (`tests/e2e/e2e-15-flip-repeat.spec.ts`), waiting out each flip and, after each reveal, its audio start (a flip back cancels a clip still being decoded, FR-13) | `__audioStarts` +1 per reveal (5 of 10 taps), none on back → front; back face shows the word; front shows the image; the card ends named "Card 1 of 5. Activate to reveal the word." | FR-13, FR-16, AC-12 |
 | SEC-01 | MVP | Launch with `cr_book=../x`, `cr_lang=%2e%2e`, each separately (`tests/e2e/sec-01-params.spec.ts`) | E1 shown; zero content requests issued (no `decks/`/`lang/`, `..` or `%2e` path) | FR-03, NFR-06, AC-02 |
 | PERF-01 | MVP | `bigdeck` (100 cards), CPU throttle 4× (CDP `Emulation.setCPUThrottlingRate`), offline (`tests/e2e/perf-01-bigdeck.spec.ts`) | ready UI < 10 s; no long task > 500 ms during boot (`__longTasks`, §3.3) | NFR-02, FR-10 |
-| PERF-02 | Better | `tests/e2e/perf-02-flip-latency.spec.ts` (DEVSPEC RD-24): a sample runs from the tap's `pointerup` `event.timeStamp` to `performance.now()` in the first animation frame after the style change that starts the flip (until FR-21: `face-back` entering the DOM; `__flipSamples`, §3.3); 20 reveals of the current card, with untimed flip-backs between them; CI baseline at 4× CPU throttle (CDP), and the same method on the reference device (results in the release notes) | median ≤ 100 ms; the first sample, median, p90, max and every sample are reported as a test annotation (the first reveal also creates the `AudioContext` — DEVSPEC OQ-14) | NFR-03, K-3 |
+| PERF-02 | Better | `tests/e2e/perf-02-flip-latency.spec.ts` (DEVSPEC RD-24): a sample runs from the tap's `pointerup` `event.timeStamp` to `performance.now()` in the first animation frame after the style change that starts the flip (until FR-21: `face-back` entering the DOM; `__flipSamples`, §3.3); 20 reveals of the current card, with untimed flip-backs between them; CI baseline at 4× CPU throttle (CDP), and the same method on the reference device (results in the release notes) | median ≤ 100 ms — the only pass condition (DEVSPEC NFR-03, RD-25); the first sample, median, p90, max and every sample are reported as a test annotation. The first sample is information only: the first reveal also creates the `AudioContext` (DEVSPEC OQ-14), and in CI its cost is mostly the host's audio-device start-up, so only the reference-device first sample is meaningful and is recorded in the release notes | NFR-03, K-3 |
 
 ### 4.6 Manual (release gate; real device, Curious Reader, airplane mode)
 
@@ -189,7 +189,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | MAN-03 | Inspect the container diagnostic log after MAN-01 | zero `NETGUARD_BLOCK`; one `cr_event` per milestone as specified | FR-24…26, NFR-01 |
 | MAN-04 | With Curious Learning: replayed `payload_id` stored once; offline events sync after leaving airplane mode | as stated | FR-24, CR§7d |
 | MAN-05 | Curious Learning previews in the CMS admin player (URL template query) | plays identically | FR-29 |
-| MAN-06 | Low-end device feel: flip smoothness, swipe tracking, memory over a 100-card session | no visible jank/stalls; no crash | NFR-03, K-3, K-7 |
+| MAN-06 | Low-end device feel: flip smoothness, swipe tracking, memory over a 100-card session; also note the delay of the first reveal after launch | no visible jank/stalls; no crash. A noticeable first-reveal delay is recorded and decided under DEVSPEC OQ-14, not failed on its own (RD-25) | NFR-03, K-3, K-7 |
 
 ## 5. Entry and exit criteria
 
@@ -307,6 +307,8 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-11 — Copilot — Clarified that PERF-02's only pass condition is the median (the first sample is information only, CI's being mostly host audio start-up), had MAN-06 note the first-reveal delay and record it under DEVSPEC OQ-14 rather than fail on it (RD-25), and now verify DEVSPEC v1.11.x.
 
 2026-11-10 — Copilot — Named the Module 8 test files and extended CT-04, IT-05's navigation part and E2E-06 with the cases written (independent additions beyond FR-17 as first written: Prev from the back, disabled presses leave card and face unchanged, focus kept on a disabled Next, one-card deck, `onIndexChange` per press, size/opacity, keyboard Enter/Space, landscape fit, nothing saved for the seed), gave E2E-06 a Great-retired arrow part, extended E2E-02 to the five-card Better pass, defined the PERF-02 method and CI baseline with the first sample reported (DEVSPEC RD-24, OQ-14) and its `__flipSamples` hook, traced FR-17, AC-13 and AC-14 to the new coverage, and now verify DEVSPEC v1.10.x.
 
