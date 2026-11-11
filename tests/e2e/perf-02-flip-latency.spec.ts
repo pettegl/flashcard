@@ -51,7 +51,8 @@ test('PERF-02 tap → flip start median ≤ 100 ms over 20 reveals (4× CPU thro
   const sorted = [...values].sort((a, b) => a - b);
   const median = (sorted[SAMPLES / 2 - 1] + sorted[SAMPLES / 2]) / 2;
   const p90 = sorted[Math.ceil(0.9 * SAMPLES) - 1];
-  const summary = `median ${median.toFixed(1)} ms, p90 ${p90.toFixed(1)} ms, max ${sorted[SAMPLES - 1].toFixed(1)} ms; samples ${values.map((v) => v.toFixed(1)).join(', ')}`;
+  // The first reveal also creates the AudioContext (DEVSPEC OQ-14), so it is reported on its own.
+  const summary = `first ${values[0].toFixed(1)} ms, median ${median.toFixed(1)} ms, p90 ${p90.toFixed(1)} ms, max ${sorted[SAMPLES - 1].toFixed(1)} ms; samples ${values.map((v) => v.toFixed(1)).join(', ')}`;
   test.info().annotations.push({ type: 'PERF-02', description: summary });
   console.log(`PERF-02 CI baseline (4× CPU): ${summary}`);
 

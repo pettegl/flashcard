@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.9.0 · **Last updated:** 2026-11-10
+**Status:** Draft · **Version:** 1.10.0 · **Last updated:** 2026-11-10
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -189,9 +189,9 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 
 | ID | Tier | Requirement | PRD |
 |---|---|---|---|
-| FR-17 | Better | `NavArrows` (UISPEC §U.6) dispatch `PREV`/`NEXT`; disabled at the ends. **Retired in Great:** component, styles, and tests are deleted when FR-18 ships. | PR-06 |
+| FR-17 | Better | `NavArrows` (`src/ui/NavArrows.tsx`, UISPEC §U.6), rendered by the ready screen below `CurrentCard` (S-4): two native `<button>`s whose handler dispatches `PREV`/`NEXT` and calls `AudioPlayer.stop()` (FR-13). At the first/last card the button is `aria-disabled="true"` (not `disabled`, so a focused button keeps focus when it reaches an end) and a press does nothing. Progress is saved by `DeckProvider`'s `onIndexChange` (FR-12), not by the arrows. **Retired in Great:** the component, its styles (one marked block in `app.css`) and its tests (CT-04, E2E-06's arrow part) are deleted when FR-18 ships. | PR-06 |
 
-**Exit:** AC-13, AC-14 pass, and with them IT-05's navigate-then-remount part and E2E-06 (AC-36, FR-12 — RD-23); at Great, AC-17 passes (no arrows exist).
+**Exit:** AC-13, AC-14 pass, and with them IT-05's navigate-then-remount part and E2E-06 (AC-36, FR-12 — RD-23); E2E-02's pass covers all five cards from here on (RD-22); at Great, AC-17 passes (no arrows exist).
 
 ### Module 9 — Great carousel (UISPEC §U.7–U.9)
 
@@ -426,7 +426,7 @@ npm run verify:release
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
 | MS1 | MVP | 0–4, 5 (FR-11), 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | Approved 2026-11-10 (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4, Module 5 (FR-11), 6 and 7 Done (tested) and Approved 2026-11-10; TESTSPEC MS1 gate green; AC-06 beyond the landscape first card deferred to E2E-10, RD-22) |
-| MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | In progress (Module 5 Better (FR-12 with FR-16) and the Module 7 Better exit (AC-11, AC-12, E2E-15) Done (tested) and Approved 2026-11-10; Module 8 (FR-17) with IT-05's navigation part and E2E-06, and PERF-02 Not started) |
+| MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | In progress (Module 5 Better (FR-12 with FR-16), the Module 7 Better exit (AC-11, AC-12, E2E-15) and Module 8 (FR-17, with IT-05's navigation part and E2E-06) Done (tested) and Approved 2026-11-10; PERF-02 CI baseline Done (tested) and Approved 2026-11-10 (median ≈ 12 ms at 4× CPU, RD-24); remaining: PERF-02 on the reference device (owner), then MS2 Approved; first-tap latency open as OQ-14) |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
 | MS5 | Release | 12 | ZIPs verified, uploaded, promoted, published | MAN-01…06 | Not started |
@@ -482,6 +482,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | OQ-10 | Who produces tile icons (per deck × language)? | FR-29 | Content team, true PNG ≥ 512×512 |
 | OQ-11 | Which scripts must render at launch (beyond Latin)? | none | Latin + Latin Extended (bundled Noto Sans); others fall back to system font |
 | OQ-13 | When the child reaches a card whose audio bytes the background batch has not loaded yet, should `play` load them on demand (late audio) instead of revealing silently? And should decoded buffers be capped for a 100-card session on low-end devices (MAN-06)? | FR-13 at Better (navigation); not MVP, whose only card is in the critical batch | Silent reveal; decoded buffers cached for the session |
+| OQ-14 | The first reveal of a session creates the shared `AudioContext` inside the tap handler (FR-13, FR-15), before the face swap can paint. Cold, that took 674 ms at 4× CPU (13 ms warm), and PERF-02's first sample was 132–302 ms while the median was ≈ 12 ms (RD-24). Should FR-13 create the context earlier (e.g. at boot, suspended, with `resume()` in the gesture — to be checked on iOS 13 and the Android WebView) or start audio after the flip paints, and should NFR-03/K-3 bind the first tap and not only the median? | NFR-03/K-3 sign-off (PERF-02 on the reference device, MAN-06) | Unchanged: context created in the first gesture; the median is the K-3 measure, and PERF-02 reports the first sample |
 
 ## Appendix B — Resolved Decisions
 
@@ -510,6 +511,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | RD-21 | 2026-11-10 | The MVP card renders only the active face and flips instantly, inside the `.card` > `.card-inner` > face structure that FR-21 (Great) animates; the back face is inert at MVP but keeps its UISPEC §U.10 name ("… Activate to flip back."). The card size comes from `cardSize` in `computeLayout.ts`, which the Great carousel layout (FR-18, UT-24) extends; the word size comes from `fitText`, measured with canvas text metrics in the Bold word font. | Owner approval of Module 7. Animation and the input lock are Great (FR-21, FR-22); rendering one face meets the hidden-face rule (§U.10) without `aria-hidden` bookkeeping, and IT-01 already expects no `face-back` on the front. MS1 is never released on its own (MS5 builds on MS4) and FR-16 makes the back name true at Better. One `cardSize` keeps the MVP and Great card the same size. |
 | RD-22 | 2026-11-10 | The `missing-image`, `missing-audio` and `long-word` variants target `alligator`, the first card; E2E-14 reveals the current Spanish card instead of all five; E2E-02's pass covers every reachable card (card 0 at MVP); AC-06 is checked at MVP on the landscape first card (CT-01, E2E-03) and for all four shapes by E2E-10. | Owner decision at Module 7. The MVP shows only card 0 (RD-11), so variants on `cat`/`bear` and "reveal all" could not run in MS1 — the RD-20 rule that an exit may only name tests its tier can pass applies to fixtures and steps too. |
 | RD-23 | 2026-11-10 | Progress (FR-12) is saved from one place, `DeckProvider`'s `onIndexChange`, an effect that fires after each committed index change (not for the seed, flips or no-ops), instead of from every navigation handler; `restoreIndex` warns on corrupt data, unknown ids and unavailable storage but is silent when nothing is stored. IT-05 is split: its restore part (stored `dog` → boot on `dog` front, remount, unknown/corrupt → card 0) is in the Module 5 Better exit, and its navigate-then-remount part joins E2E-06 in the Module 8 exit. | Owner approval of Module 5 (Better). One effect covers the arrows, peeks, swipes and keys that arrive later without each having to remember to save, and keeps side effects out of the reducer. Until FR-17 nothing in the UI changes the index, so "navigate to card 4" cannot run in Module 5 — the RD-20 rule again. Warnings make a lost resume diagnosable; a first launch is not a problem. |
+| RD-24 | 2026-11-10 | PERF-02 (NFR-03, K-3) measures from the tap's `pointerup` (`event.timeStamp`) to the first animation frame after the style change that starts the flip — until FR-21 the instant face swap (`face-back` entering the DOM) — over 20 reveals with the flip-backs between them untimed; the CI baseline runs at 4× CPU throttling (as PERF-01), and the owner's reference-device run uses the same method. | Owner decision at Module 8. `pointerdown` includes how long the finger rests and, under Playwright, the gap between separately dispatched touch events, while a tap flips on release (`click`); the next frame is the earliest the child can see the change; reveals are the path that also starts audio. |
 ## Appendix C — Out of Scope
 
 NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container changes, per-language font packs, analytics dashboards.
@@ -544,10 +546,14 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-10 | `dist/merged` holds only the primary fixtures, so real-browser checks of a variant need their own tree (`mergeVariant`: `dist/standalone` + `fixtures/variants/<name>` in a temporary directory); `scrollHeight`/`clientHeight` round subpixel line boxes (1.2 × 18 px), so overflow checks allow 1 px. | Integrated (`tests/e2e/helpers.ts`; TESTSPEC §3.3, E2E-14) |
 | 2026-11-10 | IT-05 ("navigate to card 4, remount") sat in the Module 5 Better exit, but nothing in the UI changes the index before the FR-17 arrows (Module 8) — the third exit that named a step a later module provides (after RD-20, RD-22). | Integrated (Module 5 and Module 8 exits, RD-23; TESTSPEC IT-05); needs strengthening: check every Better/Great exit for steps that need later modules before starting it |
 | 2026-11-10 | jsdom gives `window.localStorage` as `undefined` on a `file:` URL (opaque origin), while Chromium on `file://` and the container WebView provide it (CR§2.2); the integration tests install an in-memory `Storage` stand-in, and a real-browser reload check confirmed resume on `file://`. | Integrated (`tests/integration/boot.test.tsx`; TESTSPEC IT-05) |
+| 2026-11-10 | A median hides a one-off cost: the first `play()` creates the `AudioContext` synchronously in the tap handler, before React commits the flip, so the first reveal of a session took 132–302 ms in PERF-02 (674 ms cold in a fresh browser at 4× CPU) while the median was ≈ 12 ms. | Needs strengthening: OQ-14; PERF-02 now reports the first sample (TESTSPEC PERF-02) |
+| 2026-11-10 | Playwright's actionability check treats `aria-disabled="true"` as not enabled and refuses to tap, so a test of pressing a disabled arrow needs `tap({ force: true })`. | Integrated (`tests/e2e/e2e-06-resume.spec.ts`; TESTSPEC E2E-06) |
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-10 — Copilot — Recorded Module 8 (FR-17) and the PERF-02 CI baseline as done and approved (MS2 in progress until PERF-02 runs on the reference device), detailed the FR-17 `NavArrows` contract (native buttons, `aria-disabled` ends, `stop()` in the handler, saving through `onIndexChange`, retirement scope), noted E2E-02's five-card pass in the Module 8 exit, and added RD-24 (PERF-02 method), OQ-14 (first-tap latency from creating the `AudioContext` in the gesture) and two Lessons Log entries.
 
 2026-11-10 — Copilot — Recorded Module 5 (Better: FR-12 with FR-16) and the Module 7 Better exit as done and approved (MS2 in progress), detailed FR-12 (`progress.ts` `saveProgress`/`restoreIndex`, saving from `DeckProvider`'s `onIndexChange`, warnings) and FR-10 step (4), tied FR-16 to the FR-15 handler, moved IT-05's navigation part and E2E-06 to the Module 8 exit (RD-23), and added two Lessons Log entries.
 
