@@ -20,6 +20,7 @@
     "dev": "npm run fixtures && webpack serve --mode development",
     "build": "webpack --mode production",
     "build:merged": "node scripts/build-merged.mjs",
+    "build:artifact": "node scripts/build-artifact.mjs",
     "fixtures": "node scripts/make-fixtures.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

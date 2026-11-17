@@ -1,6 +1,6 @@
 # Flashcard — Development Specification (DEVSPEC)
 
-**Status:** Draft · **Version:** 1.11.0 · **Last updated:** 2026-11-11
+**Status:** Draft · **Version:** 1.12.1 · **Last updated:** 2026-11-17
 **Implements:** PRD v1.0.x (IDs `PR-xx`, `G-x`, `K-x`). **Presentation lives in the UISPEC; verification lives in the TESTSPEC.**
 
 > Status values: `Draft` → `Approved` → `Implemented`. Per-milestone progress is tracked in §III.5.
@@ -119,8 +119,9 @@ Build in the order below (the devspec order wins over any other ordering). Each 
 |---|---|---|---|
 | FR-01 | MVP | Standalone build: `output.publicPath: './'`; no `.map` files; CSS extracted to a file (no injected `<style>` tags); no inline `<script>`; no `eval`; browserslist per NFR-07; **no forbidden dependency** (see §II.3) in any `package.json` dependency field or in the runtime (non-`dev`) part of the lockfile; runtime `dependencies` are exactly `react` and `react-dom` (RD-15). | PR-12 |
 | FR-02 | MVP | `npm run dev` serves the app with fixture content merged; `npm run build:merged` assembles `dist/merged/` = engine + fixture deck + fixture lang(s), a faithful simulation of container extraction. | PR-04, PR-12 |
+| FR-30 | Dev | `npm run build:artifact` packs `dist/standalone` and **one deck in one language** (`--deck`, `--lang`, `--content`; defaults `animals`, `english`, `fixtures/content`) into one self-contained file, `dist/artifact/flashcard-<deck>-<lang>.html` (`--out` overrides), for a quick look at screen size and touch feel on a phone, opened from the phone's files with no server. JS and CSS are inlined; every other engine file and the deck's `decks/<deck>/**`, `lang/<lang>/<deck>.json` and `lang/<lang>/audios/<deck>_*` are embedded as base64. A loader shim in the file answers the app's relative requests (XHR, `fetch`, `<img>`/`Image` `src`) from the embedded files only — anything else fails as it would offline — hides Cache Storage, and, when `cr_lang`/`cr_book` are absent, sets them with `history.replaceState` (no `cr_user_id` is invented). The engine code is unchanged. **Development aid only:** never uploaded or shipped; FR-01's inline-script/style rules and `audit:standalone` apply to `dist/standalone`, not to it; it does not replace PERF-02 or the MAN suite (RD-26). | PR-12 |
 
-**Exit:** `npm run build` succeeds; `dist/standalone/index.html` opens from `file://` and shows the loading screen without console errors; `npm run audit:standalone` passes.
+**Exit:** `npm run build` succeeds; `dist/standalone/index.html` opens from `file://` and shows the loading screen without console errors; `npm run audit:standalone` passes. FR-30 (added after Module 0's approval, RD-26): BLD-04 passes.
 
 ### Module 1 — Platform: launch params and environment
 
@@ -356,7 +357,7 @@ src/ui/{Card.tsx,Carousel.tsx,NavArrows.tsx(Better only; deleted at Great),Loadi
 src/ui/{computeLayout.ts,gestures.ts,fitText.ts,useViewport.ts,strings.ts,tokens.css,app.css}
 src/assets/fonts/NotoSans-{Regular,Bold}.woff2     (bundled; Latin + Latin Extended subset; static instances — RD-14)
 src/assets/fonts/OFL.txt                           (SIL Open Font License; ships next to the fonts)
-scripts/{make-fixtures.mjs,build-merged.mjs,audit-standalone.mjs,package.mjs,verify-release.mjs}
+scripts/{make-fixtures.mjs,build-merged.mjs,build-artifact.mjs,audit-standalone.mjs,package.mjs,verify-release.mjs}
 tests/unit/**  tests/component/**  tests/integration/**  tests/e2e/**
 tests/globalSetup.cjs                Jest globalSetup: generates fixtures once if absent, before workers start
 fixtures/content/{decks/animals/**,lang/english/**,lang/spanish/**}   generated
@@ -365,6 +366,8 @@ content/{decks/<deck>/**,lang/<lang>/**,icons/<deck>-<lang>.png}     production 
 ```
 
 **Engine output** (`dist/standalone/` = the content of `flashcard-core.zip`): `index.html`, `js/main.<hash>.js` (+ `main.<hash>.js.LICENSE.txt`), `css/main.<hash>.css`, `fonts/NotoSans-{Regular,Bold}.woff2`, `fonts/OFL.txt`. Runtime font URLs are `./fonts/NotoSans-<Weight>.woff2` (FR-06).
+
+**Artifact output** (`dist/artifact/`, FR-30): `flashcard-<deck>-<lang>.html`, one self-contained file per build, for phone checks only; never uploaded or packaged.
 
 | Path | Class | Rule |
 |---|---|---|
@@ -414,6 +417,7 @@ npm test                    # unit + component + integration
 npm run build               # dist/standalone (engine only)
 npm run audit:standalone    # forbidden-dependency/bundle audit
 npm run build:merged        # dist/merged = engine + fixtures
+npm run build:artifact      # dist/artifact/flashcard-animals-english.html (one file; phone quick check, FR-30)
 npx playwright install chromium
 npm run test:e2e            # file:// offline e2e against dist/merged
 npm run dev                 # http://localhost:8080/?cr_lang=english&cr_book=animals&cr_user_id=dev
@@ -425,7 +429,7 @@ npm run verify:release
 
 | MS | Name | Modules | Deliverable | Spec exit | Implementation status |
 |---|---|---|---|---|---|
-| MS1 | MVP | 0–4, 5 (FR-11), 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | Approved 2026-11-10 (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4, Module 5 (FR-11), 6 and 7 Done (tested) and Approved 2026-11-10; TESTSPEC MS1 gate green; AC-06 beyond the landscape first card deferred to E2E-10, RD-22) |
+| MS1 | MVP | 0–4, 5 (FR-11), 6, 7 (FR-01…FR-11, FR-13…FR-15) | First card tap-to-reveal with audio from fixtures | AC-01…AC-10 | Approved 2026-11-10 (Modules 0–2 Done (tested) and Approved 2026-11-06; Modules 3, 4, Module 5 (FR-11), 6 and 7 Done (tested) and Approved 2026-11-10; TESTSPEC MS1 gate green; AC-06 beyond the landscape first card deferred to E2E-10, RD-22). Later Module 0 addition FR-30 (single-file phone build, RD-26): Done (tested) and Approved 2026-11-17, BLD-04 green and an owner check on a phone with no faults |
 | MS2 | Better | 5 (FR-12), FR-16, 8 (FR-17) | Arrows, repeatable flip, resume | AC-11…AC-14, AC-36 | In progress (Module 5 Better (FR-12 with FR-16), the Module 7 Better exit (AC-11, AC-12, E2E-15) and Module 8 (FR-17, with IT-05's navigation part and E2E-06) Done (tested) and Approved 2026-11-10; PERF-02 CI baseline Done (tested) and Approved 2026-11-10 (median ≈ 12 ms at 4× CPU, RD-24); remaining: PERF-02 on the reference device (owner), then MS2 Approved; NFR-03 binds the median only and the first sample is recorded (RD-25); reducing first-tap latency is deferred as OQ-14) |
 | MS3 | Great | 9–10 (FR-18…FR-23) | Carousel, gestures, animation, a11y; arrows removed | AC-15…AC-35 | Not started |
 | MS4 | Container-ready | 11 (FR-24…FR-26) | `cr_event` telemetry | UT-27…UT-31, E2E-07, E2E-08 | Not started |
@@ -433,7 +437,7 @@ npm run verify:release
 
 Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approved`. Updated only by a spec-update task (§III.7).
 
-`package.json` scripts (normative names): `dev`, `build`, `build:merged`, `fixtures`, `typecheck`, `lint`, `test`, `test:e2e`, `audit:standalone`, `package`, `verify:release`.
+`package.json` scripts (normative names): `dev`, `build`, `build:merged`, `build:artifact`, `fixtures`, `typecheck`, `lint`, `test`, `test:e2e`, `audit:standalone`, `package`, `verify:release`.
 
 **Dry-run table** (every script must exist and pass on fixtures before a milestone closes):
 
@@ -442,6 +446,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | `fixtures` | deterministic valid + broken content generated, true PNGs |
 | `build` + `audit:standalone` | FR-01, §II.3 |
 | `build:merged` | FR-02 merge-clean simulation |
+| `build:artifact` | FR-30 single-file phone build (one deck, one language) |
 | `test`, `test:e2e` | FR-03…FR-26 |
 | `package` + `verify:release` | FR-27, FR-28 |
 
@@ -513,6 +518,7 @@ Status vocabulary: `Not started` · `In progress` · `Done (tested)` · `Approve
 | RD-23 | 2026-11-10 | Progress (FR-12) is saved from one place, `DeckProvider`'s `onIndexChange`, an effect that fires after each committed index change (not for the seed, flips or no-ops), instead of from every navigation handler; `restoreIndex` warns on corrupt data, unknown ids and unavailable storage but is silent when nothing is stored. IT-05 is split: its restore part (stored `dog` → boot on `dog` front, remount, unknown/corrupt → card 0) is in the Module 5 Better exit, and its navigate-then-remount part joins E2E-06 in the Module 8 exit. | Owner approval of Module 5 (Better). One effect covers the arrows, peeks, swipes and keys that arrive later without each having to remember to save, and keeps side effects out of the reducer. Until FR-17 nothing in the UI changes the index, so "navigate to card 4" cannot run in Module 5 — the RD-20 rule again. Warnings make a lost resume diagnosable; a first launch is not a problem. |
 | RD-24 | 2026-11-10 | PERF-02 (NFR-03, K-3) measures from the tap's `pointerup` (`event.timeStamp`) to the first animation frame after the style change that starts the flip — until FR-21 the instant face swap (`face-back` entering the DOM) — over 20 reveals with the flip-backs between them untimed; the CI baseline runs at 4× CPU throttling (as PERF-01), and the owner's reference-device run uses the same method. | Owner decision at Module 8. `pointerdown` includes how long the finger rests and, under Playwright, the gap between separately dispatched touch events, while a tap flips on release (`click`); the next frame is the earliest the child can see the change; reveals are the path that also starts audio. |
 | RD-25 | 2026-11-11 | Resolves OQ-14's measurement question: NFR-03 and K-3 pass on the **median** of PERF-02's reveals only. The first reveal of a session (which creates the `AudioContext`, FR-13) is reported in CI and recorded on the reference device, but is not a pass condition. Reducing it stays open as OQ-14 (narrowed), to be solved later if it proves a problem in the more finished product. | Owner decision. In CI a cold `AudioContext` costs 790–890 ms unthrottled and 930–1020 ms at 4× CPU (44–77 ms warm) — mostly the host's audio-device start-up, which CPU throttling does not model — so a CI first-tap bound would measure the build machine, not a low-end phone. Both code options move or reorder the stall rather than remove it, so they wait for device evidence. |
+| RD-26 | 2026-11-17 | Add FR-30, a single-file phone build (`build:artifact`), to Module 0 as development tooling, for one deck in one language. Its embedded files reach the app through a loader shim in the file that stands in for the files the container would extract, not through hooks in the engine; inline script and style are allowed in that file only, because it is never uploaded or shipped. | Owner request before Module 9, modelled on Word Smash's `game:artifact`, to see the game on a phone before any CMS upload exists; Curious Learning's guidance is to get one language playing well first. A phone opens a downloaded file from a `content://` or `file://` URL with no sibling files, so every asset must be embedded. Keeping the engine unchanged means the file runs the exact shipped bundle and nothing in `dist/standalone` changes. |
 ## Appendix C — Out of Scope
 
 NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container changes, per-language font packs, analytics dashboards.
@@ -550,10 +556,16 @@ NG-1…NG-7 from the PRD; additionally: authoring tools, CMS changes, container 
 | 2026-11-10 | A median hides a one-off cost: the first `play()` creates the `AudioContext` synchronously in the tap handler, before React commits the flip, so the first reveal of a session took 132–302 ms in PERF-02 (674 ms cold in a fresh browser at 4× CPU) while the median was ≈ 12 ms. | Integrated (NFR-03, RD-25; TESTSPEC PERF-02, MAN-06); reducing the first-tap delay is open as OQ-14 |
 | 2026-11-10 | Playwright's actionability check treats `aria-disabled="true"` as not enabled and refuses to tap, so a test of pressing a disabled arrow needs `tap({ force: true })`. | Integrated (`tests/e2e/e2e-06-resume.spec.ts`; TESTSPEC E2E-06) |
 | 2026-11-11 | CPU throttling does not make CI's cold `AudioContext` cost a low-end-device proxy: it was 790–890 ms unthrottled and 930–1020 ms at 4× (44–77 ms warm), so it is mostly the host's audio-device start-up. A context created without a gesture runs at once in headless Chromium (`resume()` ≈ 0.1 ms), so CI cannot check an iOS unlock either. | Integrated (RD-25, OQ-14; TESTSPEC PERF-02) |
+| 2026-11-17 | Chromium logs a missing `/favicon.ico` from a plain local HTTP server as a `console.error` ("Failed to load resource: … 404"), which fails a zero-console-error check for a reason unrelated to the game; BLD-04's one-file server answers that path with 204. | Integrated (`tests/e2e/bld-04-artifact.spec.ts`; TESTSPEC BLD-04) |
+| 2026-11-17 | `scripts/**/*.mjs` are linted with Node globals only; browser code kept in a script as a function and serialised with `Function.prototype.toString` (the FR-30 shim) needs a `/* global */` comment for browser-only names, and listing a name Node already defines (`atob`, `Response`) fails `no-redeclare`. | Integrated (`scripts/build-artifact.mjs`) |
 ---
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-17 — Copilot — Recorded FR-30 (single-file phone build) as done and approved under MS1 in §III.5 after BLD-04 and an owner phone check, named the `dist/artifact/` output in §III.1, and added two Lessons Log entries (favicon 404 as a console error; browser globals in Node-linted scripts).
+
+2026-11-17 — Copilot — Added FR-30 (Draft) to Module 0: `npm run build:artifact` packs one deck in one language into a single self-contained HTML file for a quick phone check, with RD-26, the script in §III.1, §III.4 and §III.5, and BLD-04 as its exit.
 
 2026-11-11 — Copilot — Resolved OQ-14's measurement question as RD-25 (NFR-03/K-3 bind the PERF-02 median only; the first reveal is recorded, not bound), narrowed OQ-14 to whether and how to reduce the first-tap `AudioContext` delay later with a device-evidence trigger, updated NFR-03 and the §III.5 MS2 status, reclassified the first-tap Lessons Log entry and added one on CI's cold `AudioContext` cost.
 

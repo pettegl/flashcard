@@ -1,7 +1,7 @@
 # Flashcard — Test Specification (TESTSPEC)
 
-**Status:** Draft · **Version:** 1.10.1 · **Last updated:** 2026-11-11
-**Verifies:** DEVSPEC v1.11.x (`FR-`, `NFR-`) and UISPEC v1.1.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
+**Status:** Draft · **Version:** 1.11.1 · **Last updated:** 2026-11-17
+**Verifies:** DEVSPEC v1.12.x (`FR-`, `NFR-`) and UISPEC v1.1.x (`AC-`); traces to PRD `K-` metrics. This document supports the other specs; it never drives them. If its structure suggests a different build order, the DEVSPEC wins.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
 > **Authorship rule:** the TESTSPEC is owned by someone other than the DEVSPEC author. Where the author is an AI, an independent review pass must add cases the DEVSPEC author did not think of and record them in the change log.
@@ -15,7 +15,7 @@
 | Unit (`UT`) | Jest | Pure logic: params, loader, validation, reducer, layout, gestures, fitText, audio player, telemetry, progress |
 | Component (`CT`) | Jest + jsdom + React Testing Library | Cards, carousel, screens, a11y semantics, with fake timers |
 | Integration (`IT`) | Jest + jsdom with mocked `XMLHttpRequest` serving fixtures | Boot sequence, failures, resume |
-| Build (`BLD`), Packaging (`PKG`) | Node scripts + Jest | Bundle rules, ZIP structure and merge |
+| Build (`BLD`), Packaging (`PKG`) | Node scripts + Jest; Playwright where a build must be opened (BLD-02, BLD-04) | Bundle rules, ZIP structure and merge, the single-file phone build |
 | End-to-end (`E2E`, `SEC`, `PERF`) | Playwright (full Chromium, new headless) against `file://` `dist/merged`, network **offline** | Real browser behavior, gestures, animations, viewports, telemetry |
 | Manual (`MAN`) | Real devices + Curious Reader | Container behavior no desktop browser can prove |
 
@@ -143,6 +143,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 | BLD-01 | MVP | `npm run build`; inspect `dist/standalone` (automated by `npm run audit:standalone`; audit rules unit-tested in `tests/unit/audit-standalone.test.ts`) | `index.html`; no `.map`; bundle and CSS use `./` paths; no inline `<script>`/`style=""`; CSS in a file; no `eval`; browserslist as configured | FR-01, NFR-07 |
 | BLD-02 | MVP | `npm run build:merged`; open `dist/merged/index.html?…` from `file://` offline (`tests/e2e/bld-02-smoke.spec.ts`) | `dist/merged` = engine + fixture deck + fixture langs with no overwritten path; page loads (smoke): `loading` rendered (recorded by the §3.3 init script), extracted CSS applied, every request scheme ∈ {`file`, `data`, `blob`}, zero `console.error`/page errors | FR-02 |
 | BLD-03 | MVP | `npm run fixtures`; check the fixture contract (`tests/unit/fixtures.test.ts`) | §3.1 deck, both languages, WAV headers and 512×512 icon present; every image a true PNG of the listed size with the 8 px red frame; no `http(s)://` in JSON; all twelve §3.2 variants present, each overriding exactly its one thing | FR-02, §3 |
+| BLD-04 | Dev | `scripts/build-artifact.mjs` (FR-30) for `animals`/`english` into an empty temporary folder; open the file with **no query** (a) from `file://`, offline, and (b) over `http://` from a local server that serves only that file (`tests/e2e/bld-04-artifact.spec.ts`) | the folder holds exactly one `.html` file; the URL gains `cr_lang=english` and `cr_book=animals` and no `cr_user_id`; the ready screen shows card 0 with its image decoded (`naturalWidth` > 0) and both Noto Sans faces loaded; a tap reveals "Alligator" with exactly one `AudioBufferSourceNode.start`; the only requests are the page itself and `data:`/`blob:` URLs (in (b) the server sees no other path, apart from the browser's own `/favicon.ico`); zero `console.error`/page errors | FR-30 |
 | PKG-01 | Release | Names produced by `package` for deck `animals`, langs `english`,`spanish` | `flashcard-core.zip`, `flashcard-book-animals.zip`, `flashcard-book-animals-lang-english.zip`, `…-lang-spanish.zip` | FR-27 |
 | PKG-02 | Release | Engine ZIP | `index.html` at root, no wrapping folder, no `lang/`, no `decks/` | FR-27, FR-28 |
 | PKG-03 | Release | Core ZIP | only `decks/animals/**` (`deck.json`, `images/*`) | FR-27 |
@@ -208,7 +209,7 @@ Legend — **Tier**: when it first applies; *(retired at X)* means delete when X
 1. `npm ci` → `npm run fixtures` (verify variants exist and images are true PNG) → `npm run typecheck && npm run lint`.
 2. `npm test` (UT, CT, IT with coverage). Jest's `globalSetup` (`tests/globalSetup.cjs`) runs `make-fixtures` once if `fixtures/` is absent, before any worker starts; test files never regenerate fixtures themselves.
 3. `npm run build && npm run audit:standalone` → `npm run build:merged`.
-4. `npx playwright install chromium` → `npm run test:e2e` (against `dist/merged`; prefix `PW_CHANNEL=chrome` where Playwright's browsers are blocked, §2).
+4. `npx playwright install chromium` → `npm run test:e2e` (against `dist/merged`; BLD-04 builds its own single file from `dist/standalone`; prefix `PW_CHANNEL=chrome` where Playwright's browsers are blocked, §2).
 5. `npm run package` → `npm run verify:release` → PKG-06 against extracted ZIPs.
 6. Manual MAN suite on device after upload to the development channel (DEVSPEC FR-29).
 
@@ -251,6 +252,7 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 | FR-27 | PKG-01…04, PKG-12 |
 | FR-28 | PKG-02, PKG-05…11, PKG-13 |
 | FR-29 | MAN-01, MAN-05 |
+| FR-30 | BLD-04 |
 | NFR-01 | E2E-02, MAN-03, PKG-06 |
 | NFR-02 | E2E-01, PERF-01, MAN-01 |
 | NFR-03 | PERF-02, MAN-06 |
@@ -307,6 +309,10 @@ A failing test is triaged as **code defect** (fix code), **spec defect** (update
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-17 — Copilot — Clarified that the BLD level also runs in Playwright where a build must be opened (BLD-02, BLD-04) and that BLD-04 builds its own file from `dist/standalone` in the §6 dry run; BLD-04 is green and FR-30 is approved.
+
+2026-11-17 — Copilot — Added BLD-04 (Draft) for the DEVSPEC FR-30 single-file phone build (no sibling files, no query, `file://` offline and `http://`), traced FR-30 to it, and now verify DEVSPEC v1.12.x.
 
 2026-11-11 — Copilot — Clarified that PERF-02's only pass condition is the median (the first sample is information only, CI's being mostly host audio start-up), had MAN-06 note the first-reveal delay and record it under DEVSPEC OQ-14 rather than fail on it (RD-25), and now verify DEVSPEC v1.11.x.
 

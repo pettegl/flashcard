@@ -76,6 +76,7 @@ npm run typecheck && npm run lint   # run before claiming done
 npm test                            # Jest: unit + component + integration
 npm run build && npm run audit:standalone
 npm run build:merged                # dist/merged = engine + fixtures
+npm run build:artifact              # one-file phone build of one deck/language (FR-30; never shipped)
 npm run test:e2e                    # Playwright, file://, offline (PW_CHANNEL=chrome if Playwright's browsers are blocked)
 npm run dev                         # ?cr_lang=english&cr_book=animals&cr_user_id=dev
 ```

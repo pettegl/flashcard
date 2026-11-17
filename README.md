@@ -25,6 +25,7 @@ npm test                   # unit + component + integration tests (Jest, with co
 npm run build              # standalone container build to dist/standalone/
 npm run audit:standalone   # fails on anything that breaks the offline/container rules
 npm run build:merged       # dist/merged/ = engine + fixture content, as the container extracts it
+npm run build:artifact     # dist/artifact/flashcard-animals-english.html: one self-contained file to open on a phone
 npx playwright install chromium
 npm run test:e2e           # Playwright against dist/merged/ from file://, network offline
 ```
