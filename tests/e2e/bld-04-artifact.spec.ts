@@ -40,7 +40,7 @@ async function expectPlayable(page: Page): Promise<void> {
 
   const card = page.getByTestId('card-current');
   await expect(card).toHaveAttribute('data-card-id', 'alligator');
-  await expect(page.getByTestId('face-front').locator('img')).toHaveJSProperty('naturalWidth', 800);
+  await expect(card.getByTestId('face-front').locator('img')).toHaveJSProperty('naturalWidth', 800);
   expect(
     await page.evaluate(() => [document.fonts.check('400 16px "Noto Sans"'), document.fonts.check('700 16px "Noto Sans"')]),
   ).toEqual([true, true]);

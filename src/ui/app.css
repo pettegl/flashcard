@@ -80,14 +80,46 @@ body {
   font-weight: 700;
 }
 
-/* S-3 card (UISPEC §U.5). Width/height are Wc × Hc, set in JS through CSSOM (computeLayout). */
-.card {
+/*
+ * S-5 carousel (UISPEC §U.7). Each card is absolutely placed in its slot by a JS transform
+ * (computeLayout); the track is offset while a finger drags (UISPEC §U.8).
+ */
+.screen--ready {
   position: relative;
   overflow: hidden;
-  border: var(--card-border-width) solid var(--card-border);
+}
+
+.carousel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.carousel-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+/*
+ * S-3 card (UISPEC §U.5). Width/height are Wc × Hc and the slot transform is set in JS through CSSOM.
+ * The border and fill live on the faces: `overflow: hidden` here would flatten the 3D flip (FR-21).
+ */
+.card {
+  position: absolute;
+  top: 0;
+  left: 0;
   border-radius: var(--card-radius);
-  background: var(--card-front-bg);
-  box-shadow: var(--shadow);
+  transform-origin: 50% 50%;
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
@@ -104,10 +136,36 @@ body {
   outline: none;
 }
 
-.card-inner,
-.card-face {
+.card-inner {
+  position: relative;
   width: 100%;
   height: 100%;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+}
+
+.card-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: var(--card-border-width) solid var(--card-border);
+  border-radius: var(--card-radius);
+  background: var(--card-front-bg);
+  box-shadow: var(--shadow);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* FR-22 reduced motion: no slide, flip or drag animation (also forced off in JS). */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card-inner,
+  .carousel-track {
+    transition: none !important;
+  }
 }
 
 /* IMAGE_PAD_PX = 8. */
@@ -143,6 +201,8 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--card-back-bg);
+  -webkit-transform: rotateY(180deg);
+  transform: rotateY(180deg);
 }
 
 /* `word-break: break-word` is the iOS 13 fallback for `overflow-wrap: anywhere` (Safari 15.4+). */
@@ -155,64 +215,6 @@ body {
   word-break: break-word;
   overflow-wrap: anywhere;
 }
-
-/*
- * NavArrows — Better only (FR-17, UISPEC §U.6); delete this block with NavArrows.tsx when FR-18 ships.
- * S-4 content block: card + 16 px + arrows row, centered. ARROW_SIZE_PX = 56, 32 px between arrows.
- */
-.screen--ready {
-  flex-direction: column;
-}
-
-.nav-arrows {
-  display: flex;
-  justify-content: center;
-  margin-top: 16px;
-}
-
-.nav-arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--card-border);
-  color: #ffffff;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.nav-arrow + .nav-arrow {
-  margin-left: 32px;
-}
-
-.nav-arrow[aria-disabled='true'] {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.nav-arrow:focus {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.nav-arrow:focus:not(:focus-visible) {
-  outline: none;
-}
-
-.nav-arrow__icon {
-  width: 28px;
-  height: 28px;
-  pointer-events: none;
-}
-/* End NavArrows. */
 
 .visually-hidden {
   position: absolute;

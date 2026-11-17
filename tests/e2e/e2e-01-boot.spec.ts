@@ -24,7 +24,7 @@ test('E2E-01 loading screen clears to the first card in under 10 s offline', asy
   expect(await loadingSnapshot(page)).toEqual({ role: 'status', label: 'Loading', text: '' });
   await expect(page.getByTestId('loading')).toHaveCount(0);
   await expect(current).toHaveAttribute('data-card-id', 'alligator');
-  await expect(page.getByTestId('face-front').locator('img')).toHaveJSProperty('naturalWidth', 800);
+  await expect(current.getByTestId('face-front').locator('img')).toHaveJSProperty('naturalWidth', 800);
 
   expect(requests.filter((u) => !ALLOWED_SCHEMES.has(new URL(u).protocol))).toEqual([]);
   expect(consoleErrors).toEqual([]);

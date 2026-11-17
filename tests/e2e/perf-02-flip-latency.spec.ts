@@ -1,16 +1,19 @@
 import { expect, test } from '@playwright/test';
-import { appUrl, assertMergedBuild } from './helpers';
+import { appUrl, assertMergedBuild, currentFace, flipSettled } from './helpers';
 
 // PERF-02 (NFR-03, K-3), CI baseline: tap → flip start latency, median ≤ 100 ms over 20 reveals at 4× CPU
-// throttling. Until the flip animation (FR-21) the flip is the instant face swap, so a sample runs from the
-// tap's pointerup (event.timeStamp, the performance.now() time base) to the first animation frame after
-// face-back enters the DOM. The reference-device run is recorded separately by the owner.
+// throttling. A sample runs from the tap's pointerup (event.timeStamp, the performance.now() time base) to
+// the first animation frame after face-back enters the DOM: with the FR-21 animation that is the same commit
+// that sets the rotation, so it marks the flip start. Each flip and its input lock (FR-22) are waited out
+// before the next tap. The reference-device run is recorded separately by the owner.
 test.beforeAll(assertMergedBuild);
 
 const SAMPLES = 20;
 const BUDGET_MS = 100;
 
 test('PERF-02 tap → flip start median ≤ 100 ms over 20 reveals (4× CPU throttle)', async ({ page }) => {
+  // 40 animated flips, each with its FLIP_MS input lock, under 4× throttling outlast the default timeout.
+  test.setTimeout(120_000);
   await page.addInitScript(() => {
     const w = window as unknown as { __flipSamples: number[] };
     w.__flipSamples = [];
@@ -36,15 +39,16 @@ test('PERF-02 tap → flip start median ≤ 100 ms over 20 reveals (4× CPU thro
 
   await page.goto(appUrl());
   const card = page.getByTestId('card-current');
-  await expect(page.getByTestId('face-front').locator('img')).toHaveJSProperty('complete', true);
+  await expect(currentFace(page, 'front').locator('img')).toHaveJSProperty('complete', true);
 
   const samples = () => page.evaluate(() => (window as unknown as { __flipSamples: number[] }).__flipSamples);
   for (let i = 1; i <= SAMPLES; i++) {
     await card.tap();
-    await expect(page.getByTestId('face-back')).toBeVisible();
+    await expect(currentFace(page, 'back')).toBeVisible();
     await expect.poll(async () => (await samples()).length).toBe(i);
+    await flipSettled(page, 'back');
     await card.tap();
-    await expect(page.getByTestId('face-front')).toBeVisible();
+    await flipSettled(page, 'front');
   }
 
   const values = await samples();

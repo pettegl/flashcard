@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appUrl, assertMergedBuild, mergeVariant } from './helpers';
+import { appUrl, assertMergedBuild, flipSettled, mergeVariant } from './helpers';
 
 // E2E-14 (AC-08, PR-05): a long word stays inside the card; non-ASCII words render intact.
 test.beforeAll(assertMergedBuild);
@@ -19,6 +19,8 @@ test.describe('long-word variant', () => {
 
     const word = page.getByTestId('face-back').locator('.card-word');
     await expect(word).toHaveText('Supercalifragilisticexpialidociousgators');
+    // Measure after the FR-21 rotation, when the back face lies flat in the card.
+    await flipSettled(page, 'back');
     const cardBox = (await card.boundingBox())!;
     const wordBox = (await word.boundingBox())!;
     expect(wordBox.x).toBeGreaterThanOrEqual(cardBox.x);

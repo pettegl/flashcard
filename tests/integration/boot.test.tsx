@@ -2,7 +2,7 @@
  * @jest-environment-options {"url": "file:///flashcard/index.html"}
  */
 import '@testing-library/jest-dom';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { TextDecoder as NodeTextDecoder } from 'node:util';
@@ -10,6 +10,7 @@ import { App } from '../../src/app/App';
 import { boot, LOAD_GATE_MS } from '../../src/app/boot';
 import { IS_FILE_ORIGIN } from '../../src/platform/env';
 import { saveProgress } from '../../src/storage/progress';
+import { SLIDE_MS } from '../../src/ui/gestures';
 
 // IT-01…IT-05 (FR-10, FR-06, FR-12, FR-14, FR-15): boot over the generated fixtures through a mocked file:// XHR.
 const ROOT = resolve(__dirname, '../..');
@@ -147,7 +148,7 @@ describe('IT-01 boot animals/english', () => {
     const current = await screen.findByTestId('card-current');
     expect(screen.queryByTestId('loading')).not.toBeInTheDocument();
     expect(current).toHaveAttribute('data-card-id', 'alligator');
-    expect(screen.getByTestId('face-front').querySelector('img')).toHaveAttribute(
+    expect(within(screen.getByTestId('card-current')).getByTestId('face-front').querySelector('img')).toHaveAttribute(
       'src',
       './decks/animals/images/alligator.png',
     );
@@ -353,8 +354,8 @@ describe('IT-04 loading gate', () => {
   });
 });
 
-// Restore part (Module 5): progress written through saveProgress. Navigation part (Module 8): the Next
-// arrow (FR-17) changes the card, and DeckProvider's onIndexChange saves it (FR-12, RD-23).
+// Restore part (Module 5): progress written through saveProgress. Navigation part: a tap on the right peek
+// (FR-19; the Next arrow until Great) changes the card, and DeckProvider's onIndexChange saves it (FR-12, RD-23).
 describe('IT-05 resume', () => {
   const ANIMALS_SCOPE = { lang: 'english', deck: 'animals' };
 
@@ -365,7 +366,7 @@ describe('IT-05 resume', () => {
     const current = await screen.findByTestId('card-current');
     expect(current).toHaveAttribute('data-card-id', 'dog');
     expect(current).toHaveAccessibleName('Card 4 of 5. Activate to reveal the word.');
-    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(within(screen.getByTestId('card-current')).getByTestId('face-front')).toBeInTheDocument();
     expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
     // The critical batch starts with the restored card, then its neighbours.
     expect(FakeImage.requests.slice(0, 3)).toEqual(
@@ -376,7 +377,7 @@ describe('IT-05 resume', () => {
 
     render(<App search={VALID} />);
     expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'dog');
-    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(within(screen.getByTestId('card-current')).getByTestId('face-front')).toBeInTheDocument();
     expect(window.localStorage.getItem('flashcard:v1:english:animals')).toBe('{"card_id":"dog"}');
     expect(warn).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
@@ -390,7 +391,7 @@ describe('IT-05 resume', () => {
     render(<App search={VALID} />);
 
     expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'alligator');
-    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(within(screen.getByTestId('card-current')).getByTestId('face-front')).toBeInTheDocument();
     expect(warn.mock.calls.some(([message]) => /^\[flashcard\] saved /.test(String(message)))).toBe(true);
     expect(error).not.toHaveBeenCalled();
   });
@@ -401,12 +402,16 @@ describe('IT-05 resume', () => {
     expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'alligator');
   });
 
-  it('navigation part: Next to card 4, remount → restored on card 4 (dog) front', async () => {
+  it('navigation part: right peek to card 4, remount → restored on card 4 (dog) front', async () => {
     const first = render(<App search={VALID} />);
     expect(await screen.findByTestId('card-current')).toHaveAttribute('data-card-id', 'alligator');
     expect(window.localStorage.getItem('flashcard:v1:english:animals')).toBeNull(); // the seed is not saved
 
-    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByTestId('btn-next'));
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(screen.getByTestId('card-peek-next'));
+      // Input is ignored while the slide runs (FR-22).
+      await act(() => new Promise((done) => setTimeout(done, SLIDE_MS)));
+    }
     expect(screen.getByTestId('card-current')).toHaveAttribute('data-card-id', 'dog');
     expect(window.localStorage.length).toBe(1);
     expect(window.localStorage.getItem('flashcard:v1:english:animals')).toBe('{"card_id":"dog"}');
@@ -417,7 +422,7 @@ describe('IT-05 resume', () => {
     const current = await screen.findByTestId('card-current');
     expect(current).toHaveAttribute('data-card-id', 'dog');
     expect(current).toHaveAccessibleName('Card 4 of 5. Activate to reveal the word.');
-    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect(within(screen.getByTestId('card-current')).getByTestId('face-front')).toBeInTheDocument();
     expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
     expect(warn).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();

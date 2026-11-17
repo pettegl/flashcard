@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { AudioPlayer } from '../../src/audio/audioPlayer';
@@ -8,10 +8,12 @@ import type { PlayableCard } from '../../src/data/types';
 import { validateDeck } from '../../src/data/validateDeck';
 import { validateWords } from '../../src/data/validateWords';
 import { DeckProvider } from '../../src/state/DeckContext';
-import { CurrentCard } from '../../src/ui/Card';
+import { Carousel } from '../../src/ui/Carousel';
 import type { Measure } from '../../src/ui/fitText';
+import { FLIP_MS } from '../../src/ui/gestures';
 
-// CT-01, CT-02, CT-03, CT-10, CT-12 (FR-14…FR-16, NFR-06; UISPEC §U.5).
+// CT-01, CT-02, CT-03, CT-10, CT-12 (FR-14…FR-16, NFR-06; UISPEC §U.5), on the Great carousel. FR-21 keeps the
+// face being left rendered, aria-hidden, until the flip ends, so activation lets FLIP_MS pass.
 const ROOT = resolve(__dirname, '../..');
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'));
 
@@ -32,10 +34,23 @@ function mockAudio(): jest.Mocked<AudioPlayer> {
 function renderCard({ cards = CARDS, index = 0, audio = mockAudio() } = {}) {
   render(
     <DeckProvider cards={cards} index={index}>
-      <CurrentCard audio={audio} measure={measure} />
+      <Carousel audio={audio} measure={measure} />
     </DeckProvider>,
   );
   return { audio, card: screen.getByTestId('card-current') };
+}
+
+/** A face of the current card (the peeks render front faces too). */
+const face = (id: 'face-front' | 'face-back') => within(screen.getByTestId('card-current')).queryByTestId(id);
+const settle = () => act(() => void jest.advanceTimersByTime(FLIP_MS));
+function activate(card: HTMLElement) {
+  fireEvent.click(card);
+  settle();
+}
+function press(card: HTMLElement, key: string) {
+  const event = fireEvent.keyDown(card, { key });
+  settle();
+  return event;
 }
 
 let error: jest.SpyInstance;
@@ -46,9 +61,13 @@ beforeAll(() => {
   document.head.appendChild(style);
 });
 beforeEach(() => {
+  jest.useFakeTimers();
   error = jest.spyOn(console, 'error');
 });
-afterEach(() => error.mockRestore());
+afterEach(() => {
+  jest.useRealTimers();
+  error.mockRestore();
+});
 
 describe('CT-01 card front', () => {
   it('shows only the first card image in a bordered card, contained and decorative', () => {
@@ -56,12 +75,12 @@ describe('CT-01 card front', () => {
 
     expect(card).toHaveClass('card');
     expect(card).toHaveAttribute('data-card-id', 'alligator');
-    const img = screen.getByTestId('face-front').querySelector('img');
+    const img = (face('face-front') as HTMLElement).querySelector('img');
     expect(img).toHaveAttribute('src', './decks/animals/images/alligator.png');
     expect(img).toHaveAttribute('alt', '');
     expect(img).toHaveAttribute('draggable', 'false');
     expect(getComputedStyle(img as HTMLImageElement).objectFit).toBe('contain');
-    expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
+    expect(face('face-back')).not.toBeInTheDocument();
     expect(screen.queryByText('Alligator')).not.toBeInTheDocument();
     expect(screen.getByTestId('live-region')).toBeEmptyDOMElement();
   });
@@ -93,10 +112,10 @@ describe('CT-01 card front', () => {
 describe('CT-02 activating the card', () => {
   it('click reveals the word without the image and plays its audio once', () => {
     const { audio, card } = renderCard();
-    fireEvent.click(card);
+    activate(card);
 
-    expect(screen.getByTestId('face-back')).toHaveTextContent(/^Alligator$/);
-    expect(screen.queryByTestId('face-front')).not.toBeInTheDocument();
+    expect((face('face-back') as HTMLElement)).toHaveTextContent(/^Alligator$/);
+    expect(face('face-front')).not.toBeInTheDocument();
     expect(card.querySelector('img')).toBeNull();
     expect(audio.play).toHaveBeenCalledTimes(1);
     expect(audio.play).toHaveBeenCalledWith('alligator');
@@ -111,10 +130,10 @@ describe('CT-02 activating the card', () => {
   ])('%s on the focused card reveals it', (_name, key) => {
     const { audio, card } = renderCard();
     card.focus();
-    const event = fireEvent.keyDown(card, { key });
+    const event = press(card, key);
 
     expect(event).toBe(false); // default prevented (no page scroll on Space)
-    expect(screen.getByTestId('face-back')).toHaveTextContent('Alligator');
+    expect((face('face-back') as HTMLElement)).toHaveTextContent('Alligator');
     expect(audio.play).toHaveBeenCalledTimes(1);
   });
 
@@ -123,7 +142,7 @@ describe('CT-02 activating the card', () => {
     fireEvent.keyDown(card, { key: 'a' });
     fireEvent.keyDown(card, { key: 'Enter', repeat: true });
 
-    expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
+    expect(face('face-back')).not.toBeInTheDocument();
     expect(audio.play).not.toHaveBeenCalled();
   });
 });
@@ -131,11 +150,11 @@ describe('CT-02 activating the card', () => {
 describe('CT-03 flipping back and forth (Better, FR-16)', () => {
   it('clicking the back returns to the front, stops the audio and plays nothing', () => {
     const { audio, card } = renderCard();
-    fireEvent.click(card);
-    fireEvent.click(card);
+    activate(card);
+    activate(card);
 
-    expect(screen.queryByTestId('face-back')).not.toBeInTheDocument();
-    expect(screen.getByTestId('face-front').querySelector('img')).toHaveAttribute(
+    expect(face('face-back')).not.toBeInTheDocument();
+    expect((face('face-front') as HTMLElement).querySelector('img')).toHaveAttribute(
       'src',
       './decks/animals/images/alligator.png',
     );
@@ -149,8 +168,8 @@ describe('CT-03 flipping back and forth (Better, FR-16)', () => {
   it('10 clicks alternate the faces and play the audio on each of the 5 reveals', () => {
     const { audio, card } = renderCard();
     for (let i = 1; i <= 10; i++) {
-      fireEvent.click(card);
-      expect(screen.getByTestId(i % 2 === 1 ? 'face-back' : 'face-front')).toBeInTheDocument();
+      activate(card);
+      expect(face(i % 2 === 1 ? 'face-back' : 'face-front')).toBeInTheDocument();
     }
 
     expect(audio.play).toHaveBeenCalledTimes(5);
@@ -161,22 +180,22 @@ describe('CT-03 flipping back and forth (Better, FR-16)', () => {
 
   it('Enter on the back flips back too', () => {
     const { audio, card } = renderCard();
-    fireEvent.keyDown(card, { key: 'Enter' });
-    fireEvent.keyDown(card, { key: 'Enter' });
+    press(card, 'Enter');
+    press(card, 'Enter');
 
-    expect(screen.getByTestId('face-front')).toBeInTheDocument();
+    expect((face('face-front') as HTMLElement)).toBeInTheDocument();
     expect(audio.play).toHaveBeenCalledTimes(1);
     expect(audio.stop).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('word fitting (FR-14, AC-08)', () => {
-  const wordEl = () => screen.getByTestId('face-back').querySelector('.card-word') as HTMLElement;
+  const wordEl = () => (face('face-back') as HTMLElement).querySelector('.card-word') as HTMLElement;
 
   it('keeps the start size when the word fits', () => {
     // jsdom viewport → card 716×537: start = floor(0.22 × 537) = 118 px; "Cat" = 3 × 0.6 × 118 ≤ 0.84 × 716.
     const { card } = renderCard({ index: 2 });
-    fireEvent.click(card);
+    activate(card);
     expect(wordEl()).toHaveTextContent(/^Cat$/);
     expect(wordEl().style.fontSize).toBe('118px');
   });
@@ -184,7 +203,7 @@ describe('word fitting (FR-14, AC-08)', () => {
   it('shrinks in 2 px steps until the word fits', () => {
     // "Alligator" = 9 × 0.6 × px ≤ 601.44 → 118 → … → 110 px.
     const { card } = renderCard();
-    fireEvent.click(card);
+    activate(card);
     expect(wordEl().style.fontSize).toBe('110px');
   });
 
@@ -196,7 +215,7 @@ describe('word fitting (FR-14, AC-08)', () => {
       const word = 'Supercalifragilisticexpialidociousgators';
       const cards = CARDS.map((c, i) => (i === 0 ? { ...c, word } : c));
       const { card } = renderCard({ cards });
-      fireEvent.click(card);
+      activate(card);
 
       expect(wordEl()).toHaveTextContent(word);
       expect(wordEl().style.fontSize).toBe('18px');
@@ -216,8 +235,8 @@ describe('CT-10 image failure', () => {
     expect(card.querySelector('img')).toBeNull();
     expect(card.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
 
-    fireEvent.click(card);
-    expect(screen.getByTestId('face-back')).toHaveTextContent('Alligator');
+    activate(card);
+    expect((face('face-back') as HTMLElement)).toHaveTextContent('Alligator');
     expect(audio.play).toHaveBeenCalledWith('alligator');
     expect(error).not.toHaveBeenCalled();
   });
@@ -231,9 +250,9 @@ describe('CT-12 html-word variant', () => {
     expect(cards[dog].word).toBe(word);
 
     const { card } = renderCard({ cards, index: dog });
-    fireEvent.click(card);
+    activate(card);
 
-    const back = screen.getByTestId('face-back');
+    const back = (face('face-back') as HTMLElement);
     expect(back).toHaveTextContent(word, { normalizeWhitespace: false });
     expect(back.querySelector('b, img, script')).toBeNull();
     expect(document.querySelector('img[src="x"]')).toBeNull();
