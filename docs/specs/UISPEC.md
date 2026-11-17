@@ -1,6 +1,6 @@
 # Flashcard — UI Specification (UISPEC)
 
-**Status:** Draft · **Version:** 1.1.0 · **Last updated:** 2026-11-10
+**Status:** Draft · **Version:** 1.2.0 · **Last updated:** 2026-11-17
 **References:** PRD v1.0.x (`PR-xx`); behavior is defined in the DEVSPEC (`FR-xx`) and **wins** on any conflict. This document defines every screen, state, visibility rule, interaction threshold, and acceptance criterion (Gherkin). Fixtures named in scenarios (`animals`, `english`, card ids) are defined in the TESTSPEC.
 
 > Status values: `Draft` → `Approved` → `Implemented`.
@@ -69,6 +69,7 @@ Single source of truth for presentation values (other documents refer to the **n
 | `SWIPE_VELOCITY_MIN_DX_PX` | 16 (minimum travel for a velocity-based swipe) |
 | `RUBBER_BAND` | 0.3 (drag factor when no neighbour exists in the drag direction) |
 | `PERSPECTIVE_PX` | 1000 |
+| `CLICK_AFTER_POINTER_MS` | 1000 (a `click` arriving later than this after the last pointer gesture is routed by its own target, §U.8) |
 
 ## U.3 S-1 Loading
 
@@ -90,7 +91,7 @@ Single source of truth for presentation values (other documents refer to the **n
 
 ## U.5 Card component
 
-A card is a bordered rectangle of `Wc × Hc` (see §U.7 for `Wc`, `Hc`), with a two-faced 3D structure: `.card` (perspective wrapper) > `.card-inner` (rotates) > `.face-front` + `.face-back`. Until the flip animation ships (DEVSPEC FR-21, Great) the flip is instant and `.card-inner` holds only the active face.
+A card is a bordered rectangle of `Wc × Hc` (see §U.7 for `Wc`, `Hc`), with a two-faced 3D structure: `.card` (perspective wrapper) > `.card-inner` (rotates) > `.face-front` + `.face-back`. Outside a flip, `.card-inner` holds only the active face; during a flip (DEVSPEC FR-21, Great) the face being left stays rendered, `aria-hidden`, until `FLIP_MS` ends. At MVP/Better the flip is instant. The border, radius, shadow and fill are drawn by each face (`.card-face`), not by `.card`: `overflow: hidden` on an ancestor of the faces would flatten the 3D rotation (DEVSPEC RD-27).
 
 ```
 ┌────────────────────────┐   border 4px #2B4C7E, radius 16, shadow
@@ -138,7 +139,7 @@ cy  = vh / 2                              (all cards centered vertically)
 sliver = vw − (cx0 + Wc/2 + SIDE_GAP_PX)  (visible width of each peek)
 ```
 
-Slot index: `0` current, `±1` peeks, `±2` staging (rendered, off-screen, so slides never reveal an empty slot). Render window = current ±2 (clipped to existing cards). Peek cards are drawn at `SIDE_SCALE` and `SIDE_OPACITY`; z-order: current on top.
+Slot index: `0` current, `±1` peeks, `±2` staging (rendered, off-screen, so slides never reveal an empty slot; `aria-hidden` and not tappable). Render window = current ±2 (clipped to existing cards). Peek cards are drawn at `SIDE_SCALE` and `SIDE_OPACITY`; z-order: current on top. On viewports wider than 1920 px, or wider than about 2.5:1, the staging cards come into view beyond the peeks (DEVSPEC OQ-15).
 
 ```
 ┌──────────────────────────────────────────┐
@@ -155,7 +156,7 @@ Rules: no peek where there is no neighbour (first card: no left peek; last card:
 
 ## U.8 Gestures (Pointer Events; carousel region)
 
-`touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent`. Only the first active pointer is tracked; extra pointers are ignored. Use `setPointerCapture`.
+`touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent`. Only the first active pointer is tracked; extra pointers are ignored, and so are mouse buttons other than the primary one. Use `setPointerCapture`. A gesture whose `pointerdown` falls while a slide is running (§U.9 input lock) is ignored until it ends.
 
 Classification on `pointerup` (start `(x0,y0,t0)`, end `(x1,y1,t1)`; `dx = x1−x0`, `dy = y1−y0`, `dt = t1−t0`; `maxMove` = largest distance from the start during the gesture):
 
@@ -167,7 +168,7 @@ Classification on `pointerup` (start `(x0,y0,t0)`, end `(x1,y1,t1)`; `dx = x1−
 
 - Swipe direction: `dx < 0` → next card; `dx > 0` → previous card. Exactly **one** card per swipe.
 - During a drag the whole card group follows the finger 1:1. If there is no neighbour in the drag direction the displacement is multiplied by `RUBBER_BAND`. On release: swipe → slide to the new card (`SLIDE_MS`); cancel or no-neighbour → snap back (`SLIDE_MS`).
-- Tap routing by the slot under the **pointerdown** target: slot `0` → flip; slot `−1`/`+1` → go to that card (no flip); anything else → ignored.
+- Tap routing by the slot under the **pointerdown** target: slot `0` → flip; slot `−1`/`+1` → go to that card (no flip); anything else → ignored. A tap acts on the `click` that follows it (the activation event touch, mouse and assistive technology all produce, and a user gesture for audio); the `click` after a swipe or cancel is ignored. A `click` with no pointer gesture in the previous `CLICK_AFTER_POINTER_MS` is routed by its own target with the same slot rules (DEVSPEC RD-27).
 - Better/MVP: only tap-to-flip applies (no swipe, no peeks).
 
 ## U.9 Animations
@@ -177,16 +178,16 @@ Classification on `pointerup` (start `(x0,y0,t0)`, end `(x1,y1,t1)`; `dx = x1−
 | Flip | `.card-inner` transitions `transform` between `rotateY(0)` and `rotateY(180deg)` over `FLIP_MS`; `.card` has `perspective: PERSPECTIVE_PX`; both faces `backface-visibility: hidden` (with `-webkit-` prefix); `.face-back` is pre-rotated `rotateY(180deg)`. Audio starts at flip start (FR-13). |
 | Slide | Slot transforms (translate+scale) and peek opacity animate over `SLIDE_MS`. |
 | Leaving card on navigation | its face is reset to front **instantly** (no flip animation) as it slides away. |
-| Input lock | slide running → all pointer/keyboard input ignored; flip running → taps on the current card ignored (swipes and peek taps are still accepted). |
-| Reduced motion | `@media (prefers-reduced-motion: reduce)` and the JS equivalent: `FLIP_MS = SLIDE_MS = 0`, no input lock, faces swap instantly. |
+| Input lock | slide running → all pointer/keyboard input ignored; flip running → taps and `Enter`/`Space` on the current card ignored (swipes and peek taps are still accepted, and navigating ends the flip lock). Each lock is a `SLIDE_MS`/`FLIP_MS` timer started by the input that begins the slide or flip, not a `transitionend` listener (DEVSPEC RD-27). |
+| Reduced motion | `@media (prefers-reduced-motion: reduce)` and the JS equivalent, followed live: `FLIP_MS = SLIDE_MS = 0`, no input lock, faces swap instantly. |
 | Style mechanism | dynamic values are applied through CSSOM (`element.style`) or CSS classes; no inline `style=""` in static HTML; no `<style>` tag injection (DEVSPEC §II.5). |
 
 ## U.10 Accessibility
 
 | Element | Role / name | Notes |
 |---|---|---|
-| Current card | `role="button"`, `tabindex="0"`; name front: "Card {n} of {total}. Activate to reveal the word." · back: "{word}. Card {n} of {total}. Activate to flip back." | inactive face `aria-hidden="true"` (not rendered at all until FR-21, §U.5); at MVP the back is inert (§U.11) but keeps this name (DEVSPEC RD-21) |
-| Peek cards | `role="button"`, `tabindex="0"`; "Previous card" / "Next card" | |
+| Current card | `role="button"`, `tabindex="0"`; name front: "Card {n} of {total}. Activate to reveal the word." · back: "{word}. Card {n} of {total}. Activate to flip back." | inactive face not rendered, except while a flip turns it away, when it stays `aria-hidden="true"` until `FLIP_MS` ends (§U.5); at MVP the back is inert (§U.11) but keeps this name (DEVSPEC RD-21) |
+| Peek cards | `role="button"`, `tabindex="0"`; "Previous card" / "Next card" | DEVSPEC FR-23 (Module 10); until then peeks are tappable but have no role or name, and staging cards are `aria-hidden` |
 | Live region | visually hidden `aria-live="polite"` announcing the `word` on each reveal | holds the word while the back shows; empty on the front |
 | Keyboard | `Enter`/`Space` flip the focused current card; `ArrowLeft`/`ArrowRight` previous/next (DEVSPEC FR-23); Better: arrow buttons are native `<button>`s | keys ignored while the input lock is active |
 | Focus | visible `--focus-ring` on every focusable element | |
@@ -489,6 +490,8 @@ Feature: Resume
 
 ## Spec change log
 <!-- Newest first. Format: 2026-MM-DD — <author> — <one-sentence description of change> -->
+
+2026-11-17 — Copilot — From the Module 9 Great carousel (DEVSPEC RD-27): added `CLICK_AFTER_POINTER_MS`, tap-on-click routing with its own-target fallback, primary-button-only and slide-locked gestures (§U.8), timer-based locks that navigation ends (§U.9), the lingering `aria-hidden` face and face-drawn borders (§U.5, §U.10), `aria-hidden` staging cards and their very-wide-viewport caveat (§U.7, OQ-15), and noted that peek roles arrive with FR-23.
 
 2026-11-10 — Copilot — From the Module 7 MVP card (DEVSPEC RD-21): the card holds only its active face and flips instantly until FR-21, word fitting gives its start-size formula, last-step clamp, canvas measurement and no-canvas fallback, the image placeholder appears on the `error` event, and §U.10 notes the inert MVP back and the live-region contents.
 
